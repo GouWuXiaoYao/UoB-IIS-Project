@@ -1,0 +1,18 @@
+{
+  "app_version": "0.0.0-draft",
+  "model_id": "qwen2.5-coder:7b",
+  "temperature": 0.2,
+  "max_tokens": 1024,
+  "seed": 42,
+  "tau_review_ms": 3000,
+  "mech_dwell_ms": 800,
+  "pair_tolerance": 0.2,
+  "impact_recall_min": 1.0,
+  "impact_precision_min": 0.8,
+  "n_participants": 10,
+  "block_size": 4,
+  "retention_days": 90,
+  "conditions": ["C0", "C1"],
+  "task_time_limit_s": 1800,
+  "test_timeout_s": 120
+}

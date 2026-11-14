@@ -1,0 +1,25 @@
+{
+  "task_id": "T-L01a",
+  "files_to_change": 3,
+  "functions_to_change": 3,
+  "hidden_tests": 3,
+  "global_vars": [
+    {
+      "symbol": "billing.state.PRICE_CACHE",
+      "file": "billing/state.py",
+      "kind": "mutable_global",
+      "note": "must stop being written during total()"
+    }
+  ],
+  "cross_module_contracts": [
+    {
+      "contract": "billing.core.total returns integer minor units and billing.reports.summarise formats them without re-deriving tax",
+      "producer": "billing/core.py",
+      "consumer": "billing/reports.py",
+      "baseline_minor_units": 2998
+    }
+  ],
+  "untouched": [
+    "app.py"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "tasks": [
+    {
+      "task_id": "T-L01a",
+      "pair_id": "PAIR-01",
+      "stratum": "L",
+      "intent": "The checkout team reports that totals no longer reconcile with the ledger. Move the billing package to integer minor units (cents), stop the module-level cache from accumulating across calls, and keep the report format the ledger expects.",
+      "labels": {
+        "files_to_change": 3,
+        "functions_to_change": 3,
+        "hidden_tests": 3
+      }
+    },
+    {
+      "task_id": "T-L01b",
+      "pair_id": "PAIR-01",
+      "stratum": "L",
+      "intent": "The circulation desk reports that fine totals no longer reconcile with the ledger. Move the loans package to integer minor units (cents), stop the module-level cache from accumulating across calls, and keep the report format the ledger expects.",
+      "labels": {
+        "files_to_change": 3,
+        "functions_to_change": 3,
+        "hidden_tests": 3
+      }
+    }
+  ]
+}

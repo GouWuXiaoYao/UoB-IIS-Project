@@ -1,0 +1,39 @@
+# Session data is never committed (see docs/SPEC.md 4.6, Q7)
+runs/
+runs/_sim/
+
+# Local toolchain: portable git, dev venv, scratch space, install logs
+_tmp/
+_tools/
+.scratch/
+_pydeps/
+.venv/
+pip-install.log
+winget.log
+venv.log
+
+# Secrets: never commit keys or local env files
+.env
+*.key
+A2_API_KEY*
+tools/_local/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+pytest-cache-files-*/
+.mypy_cache/
+recordings/*.tmp
+
+# Course material that is not our deliverable
+参考代码库/
+*.docx
+DSH-*.md
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

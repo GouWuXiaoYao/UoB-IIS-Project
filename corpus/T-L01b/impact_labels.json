@@ -1,0 +1,25 @@
+{
+  "task_id": "T-L01b",
+  "files_to_change": 3,
+  "functions_to_change": 3,
+  "hidden_tests": 3,
+  "global_vars": [
+    {
+      "symbol": "loans.state.LOAN_CACHE",
+      "file": "loans/state.py",
+      "kind": "mutable_global",
+      "note": "must stop being written during total()"
+    }
+  ],
+  "cross_module_contracts": [
+    {
+      "contract": "loans.core.total returns integer minor units and loans.reports.summarise formats them without re-deriving tax",
+      "producer": "loans/core.py",
+      "consumer": "loans/reports.py",
+      "baseline_minor_units": 3648
+    }
+  ],
+  "untouched": [
+    "app.py"
+  ]
+}
