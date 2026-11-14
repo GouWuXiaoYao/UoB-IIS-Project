@@ -44,7 +44,7 @@ class CorpusTests(unittest.TestCase):
 
 class RunTests(unittest.TestCase):
     def test_selftest_prints_counts(self) -> None:
-        expected = f"ok: {len(tasks.load_index(ROOT / 'corpus'))} tasks, 0 cards"
+        expected = f"ok: {len(tasks.load_index(ROOT / 'corpus'))} tasks, 6 cards"
         buf = io.StringIO()
         with redirect_stdout(buf):
             code = run.selftest(CONFIG)
@@ -61,9 +61,10 @@ class RunTests(unittest.TestCase):
         self.assertEqual(before, sorted(p.name for p in ROOT.iterdir()))
 
     def test_unimplemented_flag_exits_non_zero(self) -> None:
+        # The web UI is M9; until then --port must fail loudly rather than pretend.
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
-            code = run.main(["--simulate", "1"])
+            code = run.main(["--port", "8000"])
         self.assertEqual(code, run.EXIT_NOT_READY)
         self.assertIn("not implemented yet", err.getvalue())
 

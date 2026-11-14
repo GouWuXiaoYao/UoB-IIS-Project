@@ -305,6 +305,8 @@ class Client:
             with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_S) as response:
                 raw = response.read()
         except urllib.error.HTTPError as exc:
+            with exc:
+                pass  # drain and close: an unclosed error body leaks a socket
             if exc.code in (401, 403):
                 raise AuthMissing(f"provider refused the key: HTTP {exc.code}") from exc
             raise TransportError(f"provider returned HTTP {exc.code}") from exc

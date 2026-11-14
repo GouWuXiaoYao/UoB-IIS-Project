@@ -250,7 +250,7 @@ C0 走完全相同的路径，只有 `Gate.decide` 恒 `blocked=false`——保�
 | M5 | 日志器（M7） | `govern/log.py` + schema 表 | `python -m govern.log --selftest` → **16** 类事件校验通过（PLAN 原写"14 类"，以 SPEC 4.3 为准）；正文类字段被拒；`purge` 无残留。**已完成（2026-11-14）**：`ok: 16 event types, seq from 1, atomic append, purge clean`；证据见 `docs/rubric-mapping.md` §2d | 2h |
 | M6 | LLM 客户端（M3） | `govern/llm.py`、`recordings/`、`tools/scan_secrets.py`、`tools/make_recordings.py` | `python -m govern.llm --selftest` → replay 10 次 hash 全等、无网络；`scan_secrets` 零命中。**已完成（2026-11-14）**：`ok: 6 recordings, 10 replays each, 6/6 identical, no network used`、`ok: 0 finding(s) in 105 files`；录制为作者模拟（`source: "sim"`），证据见 `docs/rubric-mapping.md` §2e | 2h |
 | M7 | 评估器（M8） | `govern/score.py`、`govern/hidden.py`、`config/rules.json` | `python -m govern.score --selftest` → gold 全绿、干净样本 0、六类规则各有正反例。**已完成（2026-11-14）**：`ok: 6 rules (complexity, duplication, bare_except, hardcoded_secret, eval_usage, sql_concat) with positive and negative fixtures, gold 6/6, clean repository 0 debt`；隐藏套件改由标准库子进程运行器执行（`ok: hidden suite runner reports pass/fail in a child interpreter`），`corpus --check` 因此不再依赖 pytest；证据见 `docs/rubric-mapping.md` §2f | 2h |
-| M8 | 编排 + CLI（M2） | `govern/session.py`、`govern/run.py` | `--simulate 100` 卡方 p>0.05；杀进程后 `--resume` 的 `seq` 连续 | 2h |
+| M8 | 编排 + CLI（M2） | `govern/session.py`、`govern/run.py`、`config/schedule.json` | `--simulate 100` 卡方 p>0.05；杀进程后 `--resume` 的 `seq` 连续。**已完成（2026-11-14）**：`ok: simulated 100 assignments, C0=300 C1=300 chi2 p=1.000 (balanced at alpha=0.05), every pair in both conditions: yes`；`govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000`；续跑由 `test_checkpoint_then_resume_continues_the_sequence` 与 `test_resume_finishes_a_checkpointed_session` 逐行断言 `seq`；证据见 `docs/rubric-mapping.md` §2g | 2h |
 | M9 | Web UI 集成 | `govern/web.py`、`static/index.html` | 手工走完 C1 与 C0 两条路径，产出 3 张 storyboard 截图 | 2h |
 | M10 | 溯源与文档 | `docs/PROVENANCE.md`、`govern/provenance.py`、README | `python -m govern.provenance --check`；故意删一条 assisted 的 check 字段 → 必须非零退出 | 1h |
 | M11 | 端到端冻结 | `--dry-run`、`--batch` 全通；ZIP + `SHA256SUMS` | 六条完成定义逐条跑一遍 | 1h |
@@ -270,7 +270,7 @@ C0 走完全相同的路径，只有 `Gate.decide` 恒 `blocked=false`——保�
 | R7 | **无 git → 无法给出 commit/release** | M0 | **已处理（2026-11-14）**：winget 与官方安装器在本机沙箱内均失败（winget 退出码 `-1978335231`，Inno 静默安装无落地文件），改用 **MinGit 2.56.1 便携版**，解压在 `_tools/git`（已被 `.gitignore` 排除），仅通过 `$env:PATH` 前插调用；仓库因此有真实 commit。**同时保留 ZIP + `SHA256SUMS` 快照**，两者在 README 中如实并列说明 |
 | R8 | 门被绕过（最致命，直接命中红线） | M4 负向测试失败 | 生成路径只接受 `Gate.open() == True`；接口层无公开旁路；有专门负向测试。**M4 已验证**：门的全部状态私有、构造时校验卡（`required_ids` 与 `n_required` 不符即 `ValueError`）、确认不跨实例继承、令牌一次性且勾选变化即失效；`tests/test_gate.py` 的 `BypassTests` 五条覆盖 |
 | R9 | 日志被写成半行/丢事件 | M5 | 单行 `write` + `flush` + `fsync`；中途杀掉进程的测试必须在 M5 通过。**已验证**：`tests/test_log.py:302` 模拟撕裂尾行，重开后截掉残段并复用 seq；实现用 `O_APPEND` 单次 `os.write` + `fsync`，不产生 `.tmp` 中转 |
-| R10 | 断点续跑双写 | M8 | 以日志末条 `seq` 为唯一权威，state 与日志冲突即报错停止 |
+| R10 | 断点续跑双写 | M8 | 以日志末条 `seq` 为唯一权威，state 与日志冲突即报错停止。**已验证**：`StateConflict` 有测试（`test_state_ahead_of_the_log_is_a_conflict`），修复方式是"state 只写不读回去判定，读回去一律以日志重放为准" |
 | R11 | 计划分析被误写成实测 | 写报告时 | SPEC 5 节横幅 + 8.1b 自查表；报告中禁用 "experiment shows" |
 | R12 | 规则集测不出轻层语料的坏味道，债务指标在 L 层恒为 0 | M7 实测 | 实测 L=0 / M=3 / H=8（加权），缺口在于 L 层的坏味道是"浮点金额 + 模块级缓存 + 语义重复的税额推导"，六类规则都不覆盖。**决定不改语料**（语料被 M2 验收与 6 条录制按字节引用，改它等于作废 replay）。交付口径：债务下降只在 M/H 层声称，L 层用隐藏测试与行数指标；已写入 `docs/rubric-mapping.md` §2f 与第 6 节 |
 

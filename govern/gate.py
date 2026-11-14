@@ -101,6 +101,18 @@ class Gate:
         self._token = None
         return True
 
+    def restore(self, checked_ids) -> None:
+        """Re-apply a checkpoint's confirmations without going through the UI."""
+        unknown = set(checked_ids) - self._known
+        if unknown:
+            raise ValueError(f"unknown card items in checkpoint: {sorted(unknown)}")
+        self._checked = set(checked_ids)
+        self._token = None
+
+    def confirmed_ids(self) -> tuple[str, ...]:
+        """The required items that are currently confirmed (for checkpoints)."""
+        return tuple(sorted(self._checked & self._required))
+
 
 class PassThroughGate(Gate):
     """``C0`` baseline: same interface, never blocks (SPEC M6 acceptance 4)."""

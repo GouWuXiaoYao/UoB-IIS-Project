@@ -35,6 +35,7 @@ class Config:
     retention_days: int
     conditions: tuple[str, ...]
     card_item_max_chars: int
+    alpha_sim: float
     task_time_limit_s: int
     test_timeout_s: int
 

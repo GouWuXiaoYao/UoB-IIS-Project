@@ -1,0 +1,10 @@
+{
+  "schedule_id": "SCH-01",
+  "seed": 42,
+  "pairs": ["PAIR-01", "PAIR-02", "PAIR-03"],
+  "participants": ["P01", "P02", "P03", "P04", "P05", "P06", "P07", "P08", "P09", "P10"],
+  "orders": [
+    "AB", "BA", "AB", "BA", "AB",
+    "BA", "AB", "BA", "AB", "BA"
+  ]
+}

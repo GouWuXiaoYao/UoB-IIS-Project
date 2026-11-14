@@ -17,6 +17,7 @@ from govern import llm
 from govern import patch as patch_mod
 from govern import tasks
 from tests._scratch import scratch_dir
+from tools import scan_secrets
 
 ROOT = Path(__file__).resolve().parent.parent
 CFG = config_mod.load(ROOT / "config" / "config.json")
@@ -370,12 +371,14 @@ class HygieneTests(unittest.TestCase):
         self.assertEqual(offenders, [], "\n".join(offenders))
 
     def test_no_endpoint_or_key_literal_in_the_code(self) -> None:
+        # Uses the project's own scanner so the check cannot drift from it:
+        # ``--task-index`` is not a key, ``http://127.0.0.1`` is not remote.
         offenders = []
         for path in sorted((ROOT / "govern").glob("*.py")) + sorted((ROOT / "tools").glob("*.py")):
-            text = path.read_text(encoding="utf-8")
-            for lineno, line in enumerate(text.splitlines(), 1):
-                if "https://" in line or "sk-" in line:
-                    offenders.append(f"{path.name}:{lineno}: {line.strip()}")
+            for _name, lineno, line in scan_secrets.scan_text(
+                path.read_text(encoding="utf-8")
+            ):
+                offenders.append(f"{path.name}:{lineno}: {line}")
         self.assertEqual(offenders, [], "\n".join(offenders))
 
     def test_the_repository_ships_one_recording_per_task(self) -> None:

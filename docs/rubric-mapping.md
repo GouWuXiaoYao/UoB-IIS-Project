@@ -15,8 +15,8 @@
 
 | 评分项（A2） | 本项目落点 | 证据（文件:行号 / 测试名） | 状态 |
 |---|---|---|---|
-| **Design reasoning and scope** | SPEC 1–2 章（RQ / 假设 / 设计）+ 每次范围收缩的记录 | `docs/SPEC.md` 6.0 决议表（Q1–Q8 八条拍板）；`docs/SPEC.md` 3.0 交付集表（MUST / SIM / PLAN / N/A 四态）；`docs/PLAN.md` 里程碑 M0–M11 | M0–M2 已落地，其余按里程碑推进 |
-| **Developed interaction** | SPEC 第 3 章模块清单；M4 评估卡、M5 渲染、M6 门控 | `govern/corpus.py:126` `check_task()` 产出的可运行仓库，是"用户任务"的输入侧；卡与门已落地：`govern/card.py:65` `build()`、`:108` `to_html()`、`govern/gate.py:57` `toggle()`、`:72` `decide()`；日志器 `govern/log.py:320` `Logger` 已能写 16 类事件 | 卡、门、日志、LLM 客户端、评估器均已落地；**界面（M9）与会话控制器（M8）未做**，故交互链路目前只能在单测与 `--selftest` 里演示 |
+| **Design reasoning and scope** | SPEC 1–2 章（RQ / 假设 / 设计）+ 每次范围收缩的记录 | `docs/SPEC.md` 6.0 决议表（Q1–Q8 八条拍板）；`docs/SPEC.md` 3.0 交付集表（MUST / SIM / PLAN / N/A 四态）；`docs/PLAN.md` 里程碑 M0–M11 | M0–M8 已落地，M9 为 PLAN，M10 为 N/A |
+| **Developed interaction** | SPEC 第 3 章模块清单；M4 评估卡、M5 渲染、M6 门控、M7 日志、M8 会话编排 | `govern/session.py:216` `Session` 把"提示 → 卡 → 勾选 → 门 → 生成 → 应用 → 测试 → 评分"串成一条真实链路，每一步落 JSONL：`start()`/`submit_prompt()`/`toggle()`/`confirm()`/`generate()`/`act()`/`end()`；`govern/run.py:165` `single()` 与 `:202` `batch()` 是它的终端入口；卡与门见 `govern/card.py:65`、`govern/gate.py:57` | 编排器、卡、门、日志、LLM 客户端、评估器均已落地并接线；**浏览器界面（M9）未做**，`--port` 明确返回 not implemented，故 storyboard 里的界面属 planned |
 | **Architecture and technical reasoning** | `govern/` 模块边界 + 零运行时依赖约束 | `AGENTS.md` §2 六条硬规则；`govern/patch.py:102` `apply_unified_diff()`（不依赖 git/patch 的离线打补丁）；`govern/corpus.py:79` `_run_hidden()`（隐藏测试在副本中执行，语料只读）；`govern/impact.py:170` `analyze()`（纯 `ast`，无模型、无网络，见 `tests/test_impact.py:122` 的跨进程哈希一致性）；`govern/gate.py:35` 的门会校验卡（`required_ids` 与 `n_required` 不符即拒绝） | M0–M4 已落地 |
 | **Development evidence and authorship** | 里程碑即提交单元；每个验收都有命令与输出 | `docs/rubric-mapping.md` 本文件第 2 节；`git log` 每次提交对应一个里程碑；证据命令见第 4 节 | 持续维护 |
 
@@ -147,10 +147,35 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ---
 
+## 2g. 编排器与 CLI 验收 → 证据（SPEC M2 五条，PLAN 里程碑 M8）
+
+验收命令：`python -m govern.run --selftest` → `ok: 6 tasks, 6 cards`；`python -m govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000`；`python -m govern.run --simulate 100` → `ok: simulated 100 assignments, C0=300 C1=300 chi2 p=1.000 (balanced at alpha=0.05), every pair in both conditions: yes`。
+
+| # | 验收标准 | 证据 | 覆盖测试 |
+|---|---|---|---|
+| M2-1 | 条件分配是**确定**的（同一被试重跑得到同一序列），且每个 PAIR 在跨被试层面两条件都出现 | `govern/session.py:83` `assign()` 用 `random.Random(f"{seed}:{participant}")` 播种、pair 顺序洗牌、成员按 `task_id` 排序；`config/schedule.json` 的 `orders`（AB/BA 交替）决定条件；`:126` `simulate()` 把 n 个被试展开成 6n 个 slot | `test_assignment_is_deterministic`（`tests/test_session.py:68`）、`test_every_pair_appears_in_both_conditions`（`:84`）、`test_each_task_runs_in_one_condition_only`（`:92`）、`test_simulation_is_balanced`（`:134`）、`test_simulation_sees_both_conditions_for_every_pair`（`:140`） |
+| M2-2 | 100 次模拟两条件均衡（卡方 p > α），且每个 PAIR 的两条件都出现过 | `govern/session.py:114` `chi_square_p()` = `erfc(sqrt(chi2/2))`（df=1 闭式）；`:126` `simulate()` 返回 `counts/chi2/p/alpha/balanced/pairs_both_conditions`；阈值 `alpha_sim` 来自 `config/config.json`，不写死 | `test_chi_square_of_a_perfect_split_is_close_to_one`（`:123`）、`test_chi_square_detects_an_unbalanced_split`（`:126`）、`test_chi_square_matches_the_closed_form_for_one_degree_of_freedom`（`:129`）、`test_simulation_counts_every_slot`（`:151`）、`test_simulate_prints_the_balance_and_writes_a_report`（`tests/test_run.py:56`） |
+| M2-3 | 断点续跑：`--resume` 后 `seq` 连续（不跳号、不重号） | `govern/session.py:216` `Session.checkpoint()` 写 `state/<session_id>.json`；`resume()` 从 `rebuild_state()` 恢复后由 `Logger` 的 `_repair_and_count()` 续号；`:165` `rebuild_state()` 只读日志 | `test_checkpoint_then_resume_continues_the_sequence`（`tests/test_session.py:335`）、`test_resume_finishes_a_checkpointed_session`（`tests/test_run.py:139`，逐行断言 `seq == 1..n`） |
+| M2-4 | 状态**只从日志**就能重建，且与内存中的状态一致 | `govern/session.py:165` `rebuild_state()`（card_id/confirmed_ids/gate_open/phase/ended/n_events 全部由事件重放得出）；`Session.state()` 的 `phase` 取"最后一条事件的 phase"（`_where()` 同步 `_last_phase`），因此与重放结果同源 | `test_state_can_be_rebuilt_from_the_log`（`:327`，逐键比较 `state()` 与 `rebuild_state()`）、`test_state_ahead_of_the_log_is_a_conflict`（`:375`，`StateConflict`） |
+| M2-5 | 没有知情同意就不许启动（且不留日志） | `govern/session.py:216` `Session.start()` 先校验 `consent_given`，失败抛 `ConsentError` 且不发出任何事件；CLI 的 `--no-consent` 直接把 `consent=None` | `test_a_session_without_consent_refuses_to_start`（`:157`，断言日志文件 0 字节）、`test_a_started_session_records_the_consent`（`:165`）、`test_without_consent_the_session_is_refused`（`tests/test_run.py:87`，退出码非 0 且无日志） |
+
+**M2 顺带覆盖的三条流程不变量**（SPEC M6 的"门"在真实编排里没有被绕过）
+
+1. 门未开时 `generate()` 抛 `GateClosed`，且 `gate_decision(blocked=true)` 已落日志 —— `test_generation_stays_closed_until_every_item_is_confirmed`（`:230`）、`test_a_partial_confirmation_is_logged_as_blocked`（`:239`）。
+2. 提示词正文不落盘，只有 `prompt_sha256` —— `test_the_prompt_body_is_not_logged_only_its_hash`（`:199`）。
+3. 一次会话产出的**每一条**事件都通过 `log.validate()` —— `test_every_emitted_event_passes_the_schema_validator`（`:305`）。
+
+**如实记录（M8 的边界）**：`--session` / `--batch` 都是**作者自测**（SIM）路径——确认角色是终端，不是招募来的被试。SPEC 0.2 的红线在这里最容易踩：报告与 README 都不得把这些运行写成"人类被试实验"。当前没有真实被试数据，`runs/` 也不入库（Q7）。
+
+---
+
 ## 3. 模块级证据
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
 |---|---|---|---|
+| `govern/session.py` | 新增（M8 = SPEC M2） | `load_schedule()` `:68`；`assign()` `:83`；`chi_square_p()` `:114`；`simulate()` `:126`；`rebuild_state()` `:165`；`Session` `:216`（`start/submit_prompt/toggle/confirm/generate/act/end/state/checkpoint/resume`）；`_selftest()` `:576` | `tests/test_session.py`（37 条：分配 9、模拟 7、同意 3、流程 11、续跑 4）；`python -m govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000` |
+| `govern/run.py` | 重写（M8） | `log_for()` `:31`；`_rehearse()` `:87`；`selftest()` `:139`；`single()` `:165`；`batch()` `:202`；`resume()` `:242`；`simulate()` `:266`；`main()` `:315` | `tests/test_run.py`（9 条：自检/演练 2、模拟 1、单会话 3、批处理 2）；`python -m govern.run --selftest` → `ok: 6 tasks, 6 cards` |
+| `config/schedule.json` | 新增（M8） | `schedule_id: SCH-01`、`seed: 42`、三对、`P01`–`P10`、`orders` AB/BA 交替 | `test_the_shipped_schedule_covers_every_pair`（`tests/test_session.py:64`）、`test_task_index_is_sequential_from_zero`（`:80`） |
 | `govern/patch.py` | 新增（M1） | `parse()` `:37`；`changed_files()` `:91`；`apply_unified_diff()` `:102` | `tests/test_patch.py`（5 条：单 hunk、多文件、新建文件、上下文不匹配、目标目录缺失） |
 | `govern/corpus.py` | 扩展（M2） | `check_task()` `:126`；`check_all()` `:158`；新增 `_pair_summary()` `:165`、`summarise()` `:187`（多输出 `pairs N/N within X%`） | `tests/test_corpus.py`（17 条）；`python -m govern.corpus --check` → `ok: 6 tasks, gold 6/6, pairs 3/3 within 20%` |
 | `tools/make_repo.py` | 扩展（M2） | `DOMAINS` `:29`（6 个域）；`_files()` `:577` 按层分派；`_labels()` `:653` 从 diff 反算文件数；`build_corpus()` `:707` | `python tools/make_repo.py --selftest` → `ok: 61 corpus files match the factory` |
@@ -217,13 +242,21 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 # 项目自检
 .\.venv\Scripts\python.exe -m govern.run --selftest
+
+# 编排器验收（M8 = SPEC M2）：分配确定性、100 次模拟的卡方、续跑
+.\.venv\Scripts\python.exe -m govern.session --selftest
+.\.venv\Scripts\python.exe -m govern.run --simulate 100
+
+# 一次完整的作者自测会话（SIM；写 runs/R-ADHOC/logs/<participant>/<session>.jsonl）
+.\.venv\Scripts\python.exe -m govern.run --session S-001 --participant P01 --condition C1 --task T-L01a
+.\.venv\Scripts\python.exe -m govern.log --validate --run-dir runs\R-ADHOC
 ```
 
 > 说明：`.venv/` 只是本机开发工具链（pytest 属**测试期**依赖，不进入运行时）；
 > 交付代码在 `govern/` 与 `tools/` 内，只用标准库。隐藏测试套件自 M7 起由
 > `govern/hidden.py` 用标准库在子解释器里跑（不再需要 pytest），所以
 > `python -m govern.corpus --check` 与 `python -m govern.score --selftest`
-> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（202 条）。
+> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（254 条）。
 
 ---
 
@@ -257,6 +290,13 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | `_replay()` 增加"模型不一致即拒绝"（M6） | SPEC M3 验收 6 要求 `model_id` 是"录制时的真实模型名"；若允许跨模型回放，日志里的模型名就会和实际产出脱钩 | 多一道 `SchemaViolation`；`test_a_recording_from_another_model_is_refused`（`tests/test_llm.py:297`）钉死 |
 | `scan_paths(paths, root=None)` 增加 `root`（M6） | 忽略规则若按**绝对**路径判定，仓库一旦位于 `.scratch/` 之类的目录下就会被整体跳过（测试里恰好如此，实测 0 命中） | 传 `root` 时按相对路径判定忽略目录；不传时退回旧行为，`scan_paths(paths)` 调用方式不变 |
 | 扫描器豁免 4 个文件（M6） | `AGENTS.md`、`docs/SPEC.md` 原文里就写着规则本身（密钥前缀与端点字面量），`tools/scan_secrets.py` 与 `tests/test_secrets.py` 含拼装的模式与合成样例——不豁免就变成"文档记录规则即违规" | `ALLOWED_PATHS`（`tools/scan_secrets.py:31`）只放这 4 个；README、报告、录制、`govern/` 仍全文扫描，真密钥粘贴到任何别处都会被报 |
+| `Session.__init__` 增加三个**仅关键字**参数（M8） | PLAN 的 `Session(run_dir, task, condition, participant, logger)` 不足以表达 M8 需要的三件事：`mode`（replay/live）、`task_index`（日志信封的第几个任务）、`client`（测试要注入录制好的客户端） | 位置参数与 PLAN 完全一致，新参数全在 `*` 之后且带默认值，PLAN 的构造调用不改也能跑 |
+| 新增 `Gate.restore()` / `confirmed_ids()`（M8） | 续跑必须能把"已勾选哪些条目"从日志恢复到门里，否则 resume 后的门状态与日志不一致（等于伪造状态） | 两个只读/恢复方法；`Gate(card)` 的行为不变，19 条门测试全绿 |
+| `score.evaluate()` 增加可选 `hidden_run=`（M8） | 会话结束时已经用 `hidden.run()` 跑过一次隐藏套件（要写 `test_run` 事件），若 `evaluate()` 再跑一次，同一份提交要付两倍子进程时间，还可能因超时给出一致性差异 | 传入时直接复用 `(tests_pass, failures)`；不传时行为与 M7 完全一致 |
+| `config/config.json` 新增 `alpha_sim`（M8） | 卡方判定的显著性水平属实验参数，AGENTS §2.4 禁止写进代码 | 纯附加键；`Config` 加同名字段，`load()` 仍会拒绝缺键 |
+| `--selftest` 输出从 `0 cards` 改为真实卡数（M8） | M0 时卡片模块尚不存在，占位值 `0 cards` 会与 SPEC M5 的"六个任务各产出一张卡"自相矛盾 | 现输出 `ok: 6 tasks, 6 cards`；`tests/test_smoke.py` 与 `tests/test_run.py` 都以该行为准 |
+| `--port` 走 `EXIT_NOT_READY`（M8） | M9 之前 Web UI 不存在；把"未实现"报成用法错误（退出码 2）会掩盖真实原因 | 新增 `_not_ready()`（`govern/run.py:155`），stderr 明说 "not implemented yet"；M9 落地时直接替换该分支 |
+| `govern.run --simulate N` 只写 `runs/_sim/sim.json`（M8） | 模拟 100 次分配不应产生 600 个空会话日志（`runs/` 不入库，但也没必要写噪声） | 报告文件含 n/counts/chi2/p/alpha/balanced/pairs；`--simulate` 不写任何 `.jsonl` |
 | 新增 `tools/make_recordings.py` 与 `recordings/`（M6） | 本机没有任何 API 凭据，若等真实调用就永远没有可复现的 replay；SPEC M3 验收 2 要求"录制完整可复现" | 录制由工厂从 gold patch 派生并标 `source: "sim"`，可逐字节重建（`--selftest` 校验）；这是**模拟**建议，不是模型输出，报告里如实说明 |
 | `Client.__init__` 增加可选 `logger`（M6） | `generation_request` / `integrity_event` 必须有地方写；PLAN 的构造签名没有日志参数 | 关键字参数默认 `None`（不写日志），`Client(config, mode, recordings, api_key_env)` 调用方式不变 |
 | 端点从 `A2_API_BASE` 读取（M6） | PLAN 只规定密钥从环境变量取，没说端点从哪来；写进 config 就违反了"无端点入库" | 与 `A2_API_KEY` 同一策略：只有环境变量，`EndpointMissing` 有单独错误码与测试 |
@@ -273,12 +313,13 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 - 影响分析器（SPEC M4 / PLAN M3）**已实现**，但它只做静态分析：不做语义推断、不读 diff、不调模型。
   它能识别的"契约"是"被 ≥ 2 个包内模块读取的顶层值"这一操作化定义（见 `govern/impact.py` docstring），
   因此它**不会**发现"两个模块各自实现同一算法"这类纯语义重复。
-- 评估卡与门控（SPEC M5/M6 / PLAN M4）**已实现**，但还**没有接线到一次真正的会话**：现在只能通过 `python -m govern.card` 渲染、通过 `python -m govern.gate --selftest` 复演不变量。
-- 遥测日志器（SPEC M7 / PLAN M5）**已实现**，但**还没有任何真实会话给它写事件**：`runs/` 下的日志目前只由测试与 `--selftest` 产生。
+- 评估卡与门控（SPEC M5/M6 / PLAN M4）**已实现**，并且从 M8 起**接线到会话**：`Session.submit_prompt()` 产卡、`toggle()/confirm()` 调门、`generate()` 在门未开时抛 `GateClosed` 并落 `gate_decision(blocked=true)`。
+- 遥测日志器（SPEC M7 / PLAN M5）**已实现**，并且从 M8 起**有真实写入方**：`govern/session.py` 的编排器会把一次作者自测会话写成完整 JSONL（`runs/` 下），`python -m govern.log --validate --run-dir …` 可复核。
 - LLM 客户端（SPEC M3 / PLAN M6）**已实现**，但只交付 `replay` 模式：`live` 需要 `A2_API_BASE` + `A2_API_KEY`，本机没有，故从未对真实服务发起过请求。
 - 结果评估器（SPEC M8 / PLAN M7）**已实现**，但**没有跑过任何一次会话**：`baseline()`/`evaluate()` 只在 6 个种子仓库与测试里的构造样本上验证过，`debt_delta`/`vuln_delta`/`lines_added` 还没有一条来自真实会话的数据。
   - 已实测的覆盖缺口：六类规则**测不到**轻层语料的坏味道（浮点金额、模块级缓存、语义重复的税额推导），L 层 `debt=0`，M=3，H=8（加权）。因此"债务下降"只在 M/H 层可测；L 层靠隐藏测试与行数指标。这一条不得在报告里含糊成"每层都能测出债务下降"。
 - 端到端指标重算（SPEC M10 `analysis/`）是 **N/A**（SPEC 3.0 交付集），所以"由日志重算全部指标"这条链路**没有实现**；`govern.log --purge` 之后无法重算依赖已删数据的结论，这一点在 SPEC M7 验收 7 里已如实降级记录。
-- 会话控制器与 Web 界面（SPEC M8/M9，PLAN 的 M8/M9）尚未实现，所以"用户动作 → 系统响应"的交互链路、以及由真实会话日志重算的指标，目前**都不可演示**，不得声称可演示。
+- 会话控制器与 CLI（SPEC M8 / PLAN M8）**已实现**，但它跑的是**作者自测**会话：确认者是终端用户本人，不是招募来的被试；`--session`/`--batch` 产出的日志是 SIM 数据，不得当作被试数据汇报。
+- **Web 界面（SPEC M9 / PLAN M9）尚未实现**：`--port` 目前明确返回"not implemented yet"（`govern/run.py:155` 的 `_not_ready()`）。因此现在还没有可演示的浏览器交互，也没有由真实会话日志驱动的前端；storyboard 里的界面属 **planned**。
 - M7 验收 7 的**后半句**（重算 `analysis/` 时报告哪些结论依赖已删除数据）未实现：`analysis/`（SPEC M10）按 Q8 是 **N/A**，本期没有重算脚本，因此 `purge` 只交付"删除清单"这一半。
 - 六个种子仓库是**自建语料**（Q4 拍板的结果），不是真实开源仓库的历史；它们只用于让"影响分析 recall / precision"可判分。

@@ -395,11 +395,19 @@ def evaluate(
     base: dict,
     rules: dict | None = None,
     timeout_s: int | None = None,
+    hidden_run: tuple[bool, list[str]] | None = None,
 ) -> Outcome:
-    """After-minus-before metrics plus the hidden-suite verdict."""
+    """After-minus-before metrics plus the hidden-suite verdict.
+
+    ``hidden_run`` lets the caller reuse a suite result it already has; without
+    it the suite runs here.
+    """
     active = rules or load_rules()
     tally = counts(repo_after, active)
-    passed, failing = run_hidden_tests(task, repo_after, timeout_s or _timeout())
+    if hidden_run is None:
+        passed, failing = run_hidden_tests(task, repo_after, timeout_s or _timeout())
+    else:
+        passed, failing = hidden_run
     added, removed = _line_delta(task.repo, repo_after)
     return Outcome(
         tests_pass=passed,
