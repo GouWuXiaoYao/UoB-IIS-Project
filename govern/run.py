@@ -54,7 +54,7 @@ def consent_for(cfg: config.Config, schedule_id: str = "SCH-01") -> dict:
         "llm_freq": "never",
         "lang_familiarity": 5,
         "schedule_id": schedule_id,
-        "device": "author-workstation",
+        "device": cfg.device,
     }
 
 

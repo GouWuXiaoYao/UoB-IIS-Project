@@ -34,7 +34,7 @@ SAMPLES: dict[str, dict] = {
     "session_start": {
         "phase": "setup", "consent_version": "SIM-AUTHOR", "consent_given": True,
         "prior_years": 3.5, "llm_freq": "weekly", "lang_familiarity": 4,
-        "schedule_id": "SCHED-A", "device": "win11-chrome",
+        "schedule_id": "SCHED-A", "device": "author-workstation",
     },
     "prompt_submit": {
         "phase": "prompt", **TASK, "prompt_id": "P-1", "prompt_len_chars": 42,
@@ -399,6 +399,94 @@ class PiiScanTests(unittest.TestCase):
             path = tmp / "nested.jsonl"
             path.write_text(json.dumps({"failing_tests": ["ok", "bob@uni.ac.uk"]}) + "\n", encoding="utf-8")
             self.assertTrue(log.scan_pii(path))
+
+
+class DeviceKindTests(unittest.TestCase):
+    """``device`` is a controlled vocabulary from config, never a free-text label (Q7).
+
+    The point of the field is to say *what kind of machine* ran the session. Anything that
+    could identify the machine or its owner -- a hostname, a user name, a company -- must be
+    rejected by the schema, not just discouraged by a comment.
+    """
+
+    def _session_start(self, device: str | None = None) -> dict:
+        """A real, emitted session_start, optionally with its device replaced."""
+        with scratch_dir() as tmp:
+            logger = log.Logger(tmp, META)
+            logger.emit("session_start", **SAMPLES["session_start"])
+            event = json.loads(logger.path.read_text(encoding="utf-8").splitlines()[-1])
+        if device is not None:
+            event["device"] = device
+        return event
+
+    def test_every_configured_kind_is_accepted(self):
+        for kind in log.device_kinds():
+            with self.subTest(kind=kind):
+                self.assertEqual(log.validate(self._session_start(kind)), [])
+
+    def test_the_config_and_the_schema_agree(self):
+        self.assertEqual(log.device_kinds(), tuple(CONFIG.device_kinds))
+        self.assertIn(CONFIG.device, CONFIG.device_kinds)
+
+    def test_a_hostname_is_rejected(self):
+        errors = log.validate(self._session_start("DESKTOP-3F2A9C"))
+        self.assertTrue(any("device" in e for e in errors), errors)
+
+    def test_a_user_name_is_rejected(self):
+        errors = log.validate(self._session_start("alice-laptop"))
+        self.assertTrue(any("device" in e for e in errors), errors)
+
+    def test_a_company_name_is_rejected(self):
+        errors = log.validate(self._session_start("acme corp laptop"))
+        self.assertTrue(any("device" in e for e in errors), errors)
+
+    def test_the_right_kind_in_the_wrong_case_is_rejected(self):
+        errors = log.validate(self._session_start("AUTHOR-WORKSTATION"))
+        self.assertTrue(any("device" in e for e in errors), errors)
+
+    def test_an_empty_device_is_rejected(self):
+        errors = log.validate(self._session_start(""))
+        self.assertTrue(any("device" in e for e in errors), errors)
+
+    def test_a_caller_can_supply_its_own_vocabulary(self):
+        event = self._session_start("bench-rig")
+        self.assertTrue(log.validate(event), "the config does not contain this kind")
+        self.assertEqual(log.validate(event, device_kinds_allowed=("bench-rig",)), [])
+
+    def test_the_override_replaces_the_config_rather_than_extending_it(self):
+        event = self._session_start("author-workstation")
+        errors = log.validate(event, device_kinds_allowed=("bench-rig",))
+        self.assertTrue(any("device" in e for e in errors), errors)
+
+
+class SessionStartCoverageTests(unittest.TestCase):
+    """session_start used to return before its own fields were checked."""
+
+    def _session_start(self) -> dict:
+        with scratch_dir() as tmp:
+            logger = log.Logger(tmp, META)
+            logger.emit("session_start", **SAMPLES["session_start"])
+            return json.loads(logger.path.read_text(encoding="utf-8").splitlines()[-1])
+
+    def test_a_missing_consent_flag_is_reported(self):
+        event = self._session_start()
+        del event["consent_given"]
+        self.assertIn("consent_given: missing for session_start", log.validate(event))
+
+    def test_a_null_consent_flag_is_reported(self):
+        event = self._session_start()
+        event["consent_given"] = None
+        self.assertTrue(any("consent_given" in e for e in log.validate(event)))
+
+    def test_a_wrongly_typed_consent_version_is_reported(self):
+        event = self._session_start()
+        event["consent_version"] = 7
+        self.assertTrue(any("consent_version" in e for e in log.validate(event)))
+
+    def test_a_bad_llm_frequency_is_reported(self):
+        event = self._session_start()
+        event["llm_freq"] = "sometimes"
+        self.assertTrue(any("llm_freq" in e for e in log.validate(event)))
 
 
 class CliTests(unittest.TestCase):

@@ -7,11 +7,18 @@ AGENTS.md). Everything else must read them from here.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, fields
 from pathlib import Path
 
 DEFAULT_PATH = Path("config") / "config.json"
 APP_VERSION_FILE = "app_version.txt"
+
+# A device kind is a slug, never a free-text label: lower case, digits and hyphens.
+# Enforcing the shape here means a hostname ("DESKTOP-3F2A9C"), a user name
+# ("alice-laptop") or a company string cannot be written into the config and then
+# logged, even by accident (SPEC 4.5, Q7).
+DEVICE_KIND_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 
 
 class ConfigError(Exception):
@@ -34,6 +41,8 @@ class Config:
     block_size: int
     retention_days: int
     conditions: tuple[str, ...]
+    device: str
+    device_kinds: tuple[str, ...]
     card_item_max_chars: int
     alpha_sim: float
     task_time_limit_s: int
@@ -73,5 +82,25 @@ def load(path: str | Path = DEFAULT_PATH) -> Config:
         raise ConfigError(f"missing config keys: {', '.join(missing)}")
 
     raw["conditions"] = tuple(raw["conditions"])
+    raw["device_kinds"] = tuple(raw["device_kinds"])
     raw["app_version"] = _read_app_version(raw["app_version"], p.parent.parent)
-    return Config(**raw)
+    cfg = Config(**raw)
+    _check_devices(cfg)
+    return cfg
+
+
+def _check_devices(cfg: "Config") -> None:
+    """Every device kind must be a slug, and the chosen one must be in the list."""
+    kinds = cfg.device_kinds
+    if not kinds:
+        raise ConfigError("device_kinds must list at least one kind")
+    bad = [kind for kind in kinds if not re.match(DEVICE_KIND_PATTERN, kind)]
+    if bad:
+        raise ConfigError(
+            "device_kinds must be lower-case slugs (no hostnames, user names or company "
+            f"names): {', '.join(repr(kind) for kind in bad)}"
+        )
+    if len(set(kinds)) != len(kinds):
+        raise ConfigError("device_kinds must not repeat a kind")
+    if cfg.device not in kinds:
+        raise ConfigError(f"device {cfg.device!r} is not one of device_kinds {list(kinds)}")

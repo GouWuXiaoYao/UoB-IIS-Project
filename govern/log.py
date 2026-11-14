@@ -12,6 +12,7 @@ per line, append-only.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -99,7 +100,9 @@ EVENT_FIELDS: dict[str, dict[str, Field]] = {
         "llm_freq": _e("never", "monthly", "weekly", "daily"),
         "lang_familiarity": _f(INT),
         "schedule_id": _f(STR),
-        "device": _f(STR),
+        # Filled per call from config/config.json: the allowed kinds are policy, so
+        # they live there rather than as a tuple in this module (AGENTS 2.4).
+        "device": Field(ENUM),
     },
     "prompt_submit": {
         "prompt_id": _f(STR),
@@ -260,9 +263,30 @@ def _check_value(name: str, value: object, spec: Field) -> list[str]:
     return errors
 
 
-def validate(ev: dict) -> list[str]:
-    """Return a list of schema problems; an empty list means the event is valid."""
+@functools.lru_cache(maxsize=1)
+def device_kinds() -> tuple[str, ...]:
+    """The allowed ``device`` kinds, read from the config file.
+
+    Read lazily and once: ``log`` must not import ``config`` at module import time
+    (config is allowed to be reloaded in tests), and the answer cannot change while
+    a process runs.
+    """
+    from govern import config as config_mod
+
+    root = Path(__file__).resolve().parent.parent
+    try:
+        return tuple(config_mod.load(root / "config" / "config.json").device_kinds)
+    except Exception:  # a missing config is a deployment fault, not a schema one
+        return ()
+
+def validate(ev: dict, device_kinds_allowed: tuple[str, ...] | None = None) -> list[str]:
+    """Return a list of schema problems; an empty list means the event is valid.
+
+    ``device_kinds_allowed`` overrides the config for callers that load their own
+    config file; leaving it out reads ``config/config.json``.
+    """
     errors: list[str] = []
+    kinds = tuple(device_kinds_allowed) if device_kinds_allowed is not None else device_kinds()
 
     for name in ev:
         if name.startswith("x_"):
@@ -282,13 +306,13 @@ def validate(ev: dict) -> list[str]:
     if isinstance(event_type, str) and event_type not in EVENT_FIELDS:
         errors.append(f"event_type: {event_type!r} is not a known event type")
         return errors
-    if event_type == "session_start":
-        return errors
 
     for name, spec in EVENT_FIELDS.get(str(event_type), {}).items():
         if name not in ev:
             errors.append(f"{name}: missing for {event_type}")
             continue
+        if name == "device" and not spec.choices:
+            spec = Field(ENUM, spec.nullable, kinds)
         errors.extend(_check_value(name, ev[name], spec))
 
     if ev.get("schema_version") != SCHEMA_VERSION:

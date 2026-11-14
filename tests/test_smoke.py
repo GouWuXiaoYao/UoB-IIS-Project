@@ -31,6 +31,59 @@ class ConfigTests(unittest.TestCase):
             config.load(ROOT / "config" / "does-not-exist.json")
 
 
+class DeviceVocabularyTests(unittest.TestCase):
+    """The device vocabulary is a config policy with a shape, not a comment."""
+
+    def _write(self, root: Path, **overrides) -> Path:
+        import json
+
+        base = json.loads(CONFIG.read_text(encoding="utf-8"))
+        base.update(overrides)
+        path = root / "config.json"
+        path.write_text(json.dumps(base), encoding="utf-8")
+        return path
+
+    def test_the_project_config_lists_slug_kinds_and_a_chosen_one(self) -> None:
+        cfg = config.load(CONFIG)
+        self.assertTrue(cfg.device_kinds)
+        self.assertIn(cfg.device, cfg.device_kinds)
+        for kind in cfg.device_kinds:
+            self.assertRegex(kind, config.DEVICE_KIND_PATTERN)
+
+    def test_a_kind_with_a_space_is_refused(self) -> None:
+        with scratch_dir() as root:
+            path = self._write(root, device_kinds=["author workstation"], device="author workstation")
+            with self.assertRaises(config.ConfigError) as caught:
+                config.load(path)
+            self.assertIn("slug", str(caught.exception))
+
+    def test_a_hostname_shaped_kind_is_refused(self) -> None:
+        with scratch_dir() as root:
+            path = self._write(root, device_kinds=["DESKTOP-3F2A9C"], device="DESKTOP-3F2A9C")
+            with self.assertRaises(config.ConfigError):
+                config.load(path)
+
+    def test_a_device_outside_the_list_is_refused(self) -> None:
+        with scratch_dir() as root:
+            path = self._write(root, device_kinds=["author-workstation"], device="lab-workstation")
+            with self.assertRaises(config.ConfigError) as caught:
+                config.load(path)
+            self.assertIn("not one of device_kinds", str(caught.exception))
+
+    def test_an_empty_list_is_refused(self) -> None:
+        with scratch_dir() as root:
+            path = self._write(root, device_kinds=[], device="author-workstation")
+            with self.assertRaises(config.ConfigError):
+                config.load(path)
+
+    def test_a_repeated_kind_is_refused(self) -> None:
+        with scratch_dir() as root:
+            path = self._write(root, device_kinds=["author-workstation", "author-workstation"],
+                               device="author-workstation")
+            with self.assertRaises(config.ConfigError):
+                config.load(path)
+
+
 class CorpusTests(unittest.TestCase):
     def test_empty_index_yields_no_tasks(self) -> None:
         with scratch_dir() as root:

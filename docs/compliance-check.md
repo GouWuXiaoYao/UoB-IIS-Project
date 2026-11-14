@@ -177,7 +177,7 @@ python tools\scan_secrets.py                 → "ok: 0 finding(s) in 154 files"
 
 ### 4.3 两条加固建议
 
-1. `device` 是**自由文本**。本期填的是 `author-workstation`；若真人研究让被试自填或按主机名自动填，就可能带出用户名/公司名。建议改成枚举（`lab-pc-01`、`personal-laptop`、`other`），并由 `log.validate()` 校验。
+1. ~~`device` 是**自由文本**~~ → **已修**。`device` 现在是受控枚举：取值只能来自 `config/config.json` 的 `device_kinds`（`author-workstation` / `reviewer-workstation` / `lab-workstation` / `unknown`），每项必须是 `^[a-z0-9]+(?:-[a-z0-9]+)*$` 的 slug，`config.load()` 与 `log.validate()` 双重拒绝列表外的值（含主机名 `DESKTOP-3F2A9C`、用户名 `alice-laptop`、公司名、大小写不符、空串）。顺带修掉一个真缺陷：`validate()` 原先对 `session_start` 提前返回，导致该事件的字段从未被校验——`device` 恰好在这个事件上，不修就等于没生效。见 SPEC 4.2/4.5 第 4、9 条与 M7 验收 8；证据 `DeviceKindTests`、`SessionStartCoverageTests`、`DeviceVocabularyTests`。
 2. `prior_years`/`llm_freq`/`lang_familiarity` 是自评协变量，属"准标识"（配合小样本可能反推个人）。本期全为常数、无风险；转真人研究时应降到区间化取值。
 
 ---
@@ -233,8 +233,8 @@ python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis
 | **P0** | 写报告本体：abstract（≤300 词）、rationale（≈1,000 词，不超 1,100）、四列表、references、首页总词数 | 这是**唯一直接掉分**的缺口；素材已经齐了，只差组装 | 首页有总词数；`tools/word_count.py` 能核对正文长度（可扩成通用计数器） |
 | **P0** | rationale 里点名 **W1–4 的课程概念**，每个决策一句"概念 → 如何影响决策" | 评分说明明文要求；现在全仓库零命中 | 至少 3 个决策各自点名一个概念 |
 | **P1** | System diagram（一图） | 评分说明点名要；Architecture 项靠它拿 Convincingly | 盒子+箭头+短标签；虚线=simulated，灰=planned |
-| **P1** | 补第 4 张 storyboard：拒绝建议 / 中途放弃 | 评分说明要"feedback **or control**"；控制面目前没图 | 新帧对应 `suggestion_action(action=reject)` 或 `withdrawn=True` |
-| **P2** | `device` 改枚举；报告写"不保存伪名映射" | 4.3 的两条硬化；转真人研究前必须做 | `log.validate()` 拒绝自由文本 device |
+| ~~P1~~ **已完成** | 补第 4 张 storyboard：拒绝建议 / 中途放弃 | 评分说明要"feedback **or control**"；控制面目前没图 | 已做：`storyboards/4-c1-reject.png` + `4-c1-reject.promises.txt`（`suggestion_action(action=reject)`，工作树逐字节不变） |
+| ~~P2~~ **已完成** | `device` 改枚举；报告写"不保存伪名映射" | 4.3 的两条硬化；转真人研究前必须做 | 已做：`config.device_kinds` + `log.validate()` 拒绝列表外取值；SPEC 4.6 明写"从未建立伪名与真实身份的映射表" |
 | **P2** | `tools/reproduce.ps1`：把 5.1 的三条命令 + 四项自检合成一条 | "一条命令复现"目前是三条 | 一条命令打印全部 `ok:` |
 | **P3** | dev 依赖加 hash（`--require-hashes`）或 vendor 轮子 | 目前只固定 pytest 主版本，传递依赖未固定 | `pip install --require-hashes -r requirements-dev.txt` |
 

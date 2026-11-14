@@ -371,6 +371,7 @@ RQ 直接把 5 与 6 变成可测命题：有效性（5 是否成立）、代价
   5. 单行 ≤ 4 KB；数组字段 ≤ 20 项，超出须截断并另记总数。
   6. **原文不落盘（Q7）**：schema 中不存在任何正文字段；凡需引用代码或 prompt 处，只写 `sha256` + `length`。校验器须**拒绝**含 `text` / `content` / `body` / `prompt_raw` 类字段的事件，并有对应测试。
   7. **保留期可执行（Q7）**：提供 `purge --before <date>` 命令，删除早于该日期的 run 目录并输出删除清单；提交后 90 天清理即由它执行。删除后目录内不得残留 `.jsonl`、`.jsonl.tmp` 或备份文件，且重跑 `analysis/` 时须显式报告"哪些结论依赖已删除数据"。
+  8. **`device` 受控枚举（Q7）**：取值只能来自 `config/config.json` 的 `device_kinds`；`log.validate()` 对列表外的值报错，测试须覆盖"每个合法值都通过"与"主机名 / 用户名 / 公司名 / 大小写不符 / 空串都被拒"。`session_start` 的字段与信封同等校验，不得因它是会话首条事件而跳过。
 
 ---
 
@@ -485,7 +486,7 @@ RQ 直接把 5 与 6 变成可测命题：有效性（5 是否成立）、代价
 
 | `event_type` | 私有字段（类型 / 取值） |
 |---|---|
-| `session_start` | `consent_version` string；`consent_given` boolean；`prior_years` number；`llm_freq` enum(never/monthly/weekly/daily)；`lang_familiarity` integer 1–5；`schedule_id` string；`device` string（OS 大类 + 浏览器，不含 UA 全串） |
+| `session_start` | `consent_version` string；`consent_given` boolean；`prior_years` number；`llm_freq` enum(never/monthly/weekly/daily)；`lang_familiarity` integer 1–5；`schedule_id` string；`device` **enum，取值只能来自 `config/config.json` 的 `device_kinds` 列表**（默认 `author-workstation` / `reviewer-workstation` / `lab-workstation` / `unknown`）；每项必须是 `^[a-z0-9]+(?:-[a-z0-9]+)*$` 的 slug，因此写不进主机名、用户名、公司名或任何自由文本设备标识（Q7） |
 | `prompt_submit` | `prompt_id` string；`prompt_len_chars` integer；`prompt_sha256` string；`attached_files` array<string>（≤20） |
 | `generation_request` | `suggestion_id` string/null；`request_sha256` string；`mode` enum(mock/live)；`latency_ms` integer；`tokens_in` integer/null；`tokens_out` integer/null |
 | `suggestion_shown` | `suggestion_id` string；`suggestion_seq` integer；`n_files` integer；`n_lines_changed` integer；`n_hunks` integer；`rationale_len_chars` integer |
@@ -505,7 +506,7 @@ RQ 直接把 5 与 6 变成可测命题：有效性（5 是否成立）、代价
 ### 4.4 示例行（真实可解析，逐行独立）
 
 ```json
-{"schema_version":"1.0.0","event_id":"9f1c0b7e-2a44-4c1e-9b1f-0d6a3e5c7b21","seq":1,"ts":"2026-11-20T10:02:11.004+00:00","session_id":"S-01J9Z7K3","participant_id":"P07","condition":"C1","task_id":null,"task_index":null,"pair_id":null,"phase":"setup","event_type":"session_start","app_version":"0.3.1+9c2a1f","model_id":"qwen2.5-coder:7b","model_temperature":0.2,"seed":42,"consent_version":"2026-11-01","consent_given":true,"prior_years":3.5,"llm_freq":"weekly","lang_familiarity":4,"schedule_id":"SCHED-2026-11-A","device":"win11-chrome"}
+{"schema_version":"1.0.0","event_id":"9f1c0b7e-2a44-4c1e-9b1f-0d6a3e5c7b21","seq":1,"ts":"2026-11-20T10:02:11.004+00:00","session_id":"S-01J9Z7K3","participant_id":"P07","condition":"C1","task_id":null,"task_index":null,"pair_id":null,"phase":"setup","event_type":"session_start","app_version":"0.3.1+9c2a1f","model_id":"qwen2.5-coder:7b","model_temperature":0.2,"seed":42,"consent_version":"2026-11-01","consent_given":true,"prior_years":3.5,"llm_freq":"weekly","lang_familiarity":4,"schedule_id":"SCHED-2026-11-A","device":"author-workstation"}
 {"schema_version":"1.0.0","event_id":"4b8e2c11-77d0-4a2f-b1c9-5e3d9a0f6c12","seq":14,"ts":"2026-11-20T10:14:32.418+00:00","session_id":"S-01J9Z7K3","participant_id":"P07","condition":"C1","task_id":"T-L02a","task_index":0,"pair_id":"PAIR-02","phase":"card","event_type":"card_shown","app_version":"0.3.1+9c2a1f","model_id":"qwen2.5-coder:7b","model_temperature":0.2,"seed":42,"card_id":"CARD-0007","card_version":"1.0","n_items":4,"n_required":4,"latency_from_prompt_ms":1180,"impact_set_hash":"sha256:3f1a9c..."}
 {"schema_version":"1.0.0","event_id":"c3a7d5e9-1f62-4b83-8d04-2a6b7e1f9c33","seq":15,"ts":"2026-11-20T10:14:33.006+00:00","session_id":"S-01J9Z7K3","participant_id":"P07","condition":"C1","task_id":"T-L02a","task_index":0,"pair_id":"PAIR-02","phase":"card","event_type":"card_item_toggle","app_version":"0.3.1+9c2a1f","model_id":"qwen2.5-coder:7b","model_temperature":0.2,"seed":42,"card_id":"CARD-0007","item_id":"CI-03","item_category":"cross_module_contract","checked":true,"dwell_ms":412}
 {"schema_version":"1.0.0","event_id":"e2d6f4a8-3b15-4c72-9e60-7f8a1b2c3d44","seq":21,"ts":"2026-11-20T10:19:04.772+00:00","session_id":"S-01J9Z7K3","participant_id":"P07","condition":"C1","task_id":"T-L02a","task_index":0,"pair_id":"PAIR-02","phase":"review","event_type":"suggestion_action","app_version":"0.3.1+9c2a1f","model_id":"qwen2.5-coder:7b","model_temperature":0.2,"seed":42,"suggestion_id":"SUG-0007","action":"accept","review_dwell_ms":2650,"edit_distance_lines":null,"accepted_after_gate":true}
@@ -517,19 +518,20 @@ RQ 直接把 5 与 6 变成可测命题：有效性（5 是否成立）、代价
 1. 每行合法 JSON；每行一个对象；无嵌套深度 > 3。
 2. `(session_id, seq)` 唯一且递增 1。
 3. `ts` 必带偏移；同一 session 内非递减。
-4. 枚举值只取 4.2/4.3 列出的小写值。
+4. 枚举值只取 4.2/4.3 列出的小写值；`device` 的取值集合由 `config/config.json` 的 `device_kinds` 给出，`log.validate()` 必须在值不属于该列表时拒绝（含大小写不符、空串、主机名、用户名、公司名一类的自由文本）。
 5. 未知字段仅允许 `x_` 前缀（前向兼容）。
 6. 未知值用 `null`，**不允许空字符串代替 null**。
 7. 不写源码正文、不写 prompt 正文（只写 `sha256` 与长度）；**没有"另存原文"的例外**（Q7），需要原文时凭 hash 回查。
 8. 单行 ≤ 4 KB；数组 ≤ 20 项。
+9. `session_start` 自身的字段与信封同等校验：缺字段、`null` 代替必填、类型不符都要报错（不能因为它是会话第一条事件就跳过）。
 
 ### 4.6 隐私边界（Q7 拍板：只存 hash + 长度，原文不落盘，90 天删除）
 
 - **原文不落盘**：不写源码正文、不写 prompt 正文，只写 `sha256` 与 `length`（字节数）。schema 层面禁止 `text` / `content` / `body` / `prompt_raw` 这类字段；需要原文时凭 hash 回查 `recordings/`（M3）或仓库快照，而不是查日志。
 - **数据位置**：全部本地；`runs/` 置于仓库外或列入 `.gitignore`，**不入 Git**。
 - **保留期**：提交后 **90 天**删除全部运行日志与录制，由 M7 的 `purge --before` 执行，删除清单留档（可核对删了什么）。
-- **伪名**：日志中只有 `participant_id`；伪名映射表独立存放、独立权限（Q1 不招人时，映射表里只有作者自己一条）。
-- **不记录**：IP、完整 User-Agent、窗口标题、剪贴板内容。
+- **伪名**：日志中只有 `participant_id`；伪名映射表独立存放、独立权限（Q1 不招人时，映射表里只有作者自己一条）。**本项目从未建立伪名与真实身份的映射表**：`P01` 是脚本操作者的占位标识，不是某个真人的代号；因此没有"映射表被泄露"这类风险，也没有可还原的身份信息。
+- **不记录**：IP、完整 User-Agent、窗口标题、剪贴板内容；`device` 只允许配置里的受控 slug（如 `author-workstation`），**不允许主机名、用户名、公司名或任何自由文本设备标识**。
 - **删除即彻底**：`purge` 是唯一删除入口；删除后不得残留 `.jsonl`、`.jsonl.tmp` 或备份副本。
 - **唯一的受控例外：`recordings/`（M3）**。回放需要模型输入输出原文，因此该目录保存原文；但其中的代码与 prompt 全部来自**自建语料 + 作者自测**，不含任何第三方数据，故可随仓库交付。**凡来自真人会话的录制一律不得进入该目录**，须在会话结束时即删除。这一条是 Q7 与 Q3/replay 的交界处，若日后转真人研究，必须重新裁决。
 

@@ -133,12 +133,14 @@ BLOCKS: list[tuple[str, object]] = [
     ]),
     ("h1", "3  Scope, and the boundary between implemented and simulated"),
     ("p",
-     "The prototype is eleven modules and 395 tests, all runnable offline with no "
+     "The prototype is eleven modules and 433 tests, all runnable offline with no "
      "third-party dependency. Implemented: corpus factory, analyser, card, gate, telemetry schema, "
      "scorer, orchestrator, web interface, provenance ledger and release snapshot. Simulated: the "
      "model. Six suggestions were recorded once and replayed byte for byte; no external model API was "
-     "ever called, and the client that would call one is tested against a loopback stub only. Planned: "
-     "the human study, its hypotheses and the inferential tests that would accompany them. A "
+     "ever called, and the client is tested against a loopback stub only. Planned: "
+     "the human study, its hypotheses and the inferential tests that would accompany them. The logs "
+     "hold no free text, only hashes and lengths, and no table links a pseudonym to a person: there "
+     "is nothing to re-identify. A "
      "provenance ledger records which artefacts are original, reused or assisted, with the check that "
      "verified each assisted row, so the boundary is auditable rather than asserted."),
     ("h1", "4  Evidence, and what it does not show"),
