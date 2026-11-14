@@ -17,12 +17,37 @@ import itertools
 import json
 import math
 import unittest
+import uuid
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
 from analysis import checks, load, png, report, stats, xlsx
+from govern import config, log
 from tests._scratch import scratch_dir
+
+# The fixture writes JSONL directly, so it must use the same vocabulary the schema enforces.
+DEVICE = config.load().device
+
+# SPEC 4.3: each event type belongs to one phase. The fixture used to write "run", which is
+# not in the schema at all -- harmless only because nothing validated these lines.
+PHASE_BY_KIND = {
+    "session_start": "setup",
+    "prompt_submit": "prompt",
+    "card_shown": "card",
+    "gate_decision": "gate",
+    "generation_request": "generate",
+    "suggestion_shown": "generate",
+    "suggestion_action": "review",
+    "explanation_open": "review",
+    "test_run": "test",
+    "suggestion_scored": "review",
+    "task_end": "end",
+    "session_end": "end",
+    "comprehension_item": "quiz",
+    "survey_response": "survey",
+    "integrity_event": "review",
+}
 
 
 def _quiet(function, *args, **kwargs):
@@ -32,18 +57,19 @@ def _quiet(function, *args, **kwargs):
 
 
 def _event(session: str, seq: int, kind: str, **fields) -> str:
+    task_id = fields.pop("task_id", None)
     payload = {
         "schema_version": "1.0.0",
-        "event_id": f"{session}-{seq}",
+        "event_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{session}:{seq}")),
         "seq": seq,
         "ts": "2026-11-14T10:00:00.000+00:00",
         "session_id": session,
         "participant_id": fields.pop("participant", "P01"),
         "condition": fields.pop("condition", "C1"),
-        "task_id": fields.pop("task_id", None),
-        "task_index": 0,
+        "task_id": task_id,
+        "task_index": None if task_id is None else fields.pop("task_index", 0),
         "pair_id": fields.pop("pair_id", "PAIR-01"),
-        "phase": "run",
+        "phase": PHASE_BY_KIND.get(kind, "review"),
         "event_type": kind,
         "app_version": "1.0.0",
         "model_id": "qwen2.5-coder:7b",
@@ -61,21 +87,28 @@ def _session_files(root: Path, values: dict[tuple[str, str], float], n_tasks: in
     for (condition, task), debt in values.items():
         session = f"S-{condition}-{task}"
         def ev(seq, kind, **fields):
-            return _event(session, seq, kind, condition=condition, task_id=fields.pop("task_id", task), **fields)
+            line = _event(session, seq, kind, condition=condition,
+                          task_id=fields.pop("task_id", task), **fields)
+            problems = log.validate(json.loads(line))
+            if problems:
+                raise AssertionError(f"fixture {kind} is not schema-valid: {problems}")
+            return line
         lines = [
             ev(1, "session_start", task_id=None, consent_version="SIM-AUTHOR",
                consent_given=True, prior_years=0.0, llm_freq="never",
-               lang_familiarity=5, schedule_id="SCH-01", device="test"),
-            ev(2, "prompt_submit", prompt_sha256="a" * 64, prompt_len=20),
+               lang_familiarity=5, schedule_id="SCH-01", device=DEVICE),
+            ev(2, "prompt_submit", prompt_id="P-1", prompt_len_chars=20,
+               prompt_sha256="a" * 64, attached_files=[]),
             ev(3, "card_shown", card_id="card-1",
                card_version="1.0.0+card/1", n_items=2, n_required=2,
                latency_from_prompt_ms=0, impact_set_hash="sha256:" + "b" * 64),
             ev(4, "gate_decision", card_id="card-1",
                confirmed=True, blocked=False, n_required=2, n_confirmed=2,
                gate_latency_ms=5),
-            ev(5, "generation_request", request_sha256="c" * 64, mode="replay"),
-            ev(6, "suggestion_shown", suggestion_id="SUG-1",
-               patch_sha256="d" * 64, patch_lines=10, n_touched=2),
+            ev(5, "generation_request", suggestion_id="SUG-1", request_sha256="c" * 64,
+               mode="replay", latency_ms=1, tokens_in=None, tokens_out=None),
+            ev(6, "suggestion_shown", suggestion_id="SUG-1", suggestion_seq=1,
+               n_files=1, n_lines_changed=10, n_hunks=1, rationale_len_chars=40),
             ev(7, "suggestion_action", suggestion_id="SUG-1",
                action="accept", review_dwell_ms=1200, edit_distance_lines=0,
                accepted_after_gate=True),
@@ -84,7 +117,7 @@ def _session_files(root: Path, values: dict[tuple[str, str], float], n_tasks: in
             ev(9, "suggestion_scored", suggestion_id="SUG-1",
                is_correct=False, gold_patch_match=False, scored_by="hidden_tests",
                scorer_version="score/1.0.0"),
-            ev(10, "task_end", elapsed_ms=100.0, submitted=True,
+            ev(10, "task_end", elapsed_ms=100, submitted=True,
                timeout=False, tests_pass=False, n_fail=1, debt_delta=debt,
                vuln_delta=0, lines_added=4, lines_removed=3, n_suggestions=1,
                n_accepted=1, n_edits=0, n_rejects=0),
