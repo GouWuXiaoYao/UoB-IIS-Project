@@ -256,6 +256,78 @@ class ActRouteTests(_Base):
         self.assertEqual(before, sorted(p.name for p in (self.session.work).rglob("*.py")))
 
 
+class RejectPathTests(_Base):
+    """The control path: the person refuses what the model proposed.
+
+    The accept path is easy to fake -- a page that always applies the patch looks
+    right in every acceptance test.  These tests pin the opposite outcome: the
+    refusal must be reachable through the same HTTP surface, must leave the working
+    copy byte-identical, and must be visible in the log and in the reloaded page.
+    """
+
+    def _generate(self) -> dict:
+        self.confirm_all()
+        status, body = self.served.call("POST", "/api/generate", {})
+        self.assertEqual(status, 200)
+        return body
+
+    def _reject(self, suggestion: dict, dwell_ms: int = 2400) -> dict:
+        status, body = self.served.call(
+            "POST",
+            "/api/act",
+            {"suggestion_id": suggestion["suggestion_id"], "action": "reject", "dwell_ms": dwell_ms},
+        )
+        self.assertEqual(status, 200)
+        return body
+
+    def test_refusing_leaves_every_byte_of_the_working_copy_alone(self) -> None:
+        suggestion = self._generate()
+        before = _tree_digest(self.session.work)
+        body = self._reject(suggestion)
+        after = _tree_digest(self.session.work)
+        self.assertFalse(body["applied"])
+        self.assertEqual(body["action"], "reject")
+        self.assertEqual(after, before, "a refusal changed the working copy")
+        self.assertEqual(len(before), 5, "expected the five files of T-L01a")
+
+    def test_the_refusal_is_logged_and_the_task_ends_with_one_reject(self) -> None:
+        suggestion = self._generate()
+        self._reject(suggestion)
+        status, _ = self.served.call("POST", "/api/end", {"submitted": False})
+        self.assertEqual(status, 200)
+        events = _events(self.logger)
+        actions = [e for e in events if e["event_type"] == "suggestion_action"]
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]["action"], "reject")
+        self.assertTrue(actions[0]["accepted_after_gate"])
+        self.assertEqual(actions[0]["review_dwell_ms"], 2400)
+        end = [e for e in events if e["event_type"] == "task_end"][-1]
+        self.assertEqual((end["n_accepted"], end["n_rejects"]), (0, 1))
+        self.assertFalse(end["submitted"])
+        self.assertFalse(end["tests_pass"], "nothing was applied, so the hidden suite must still fail")
+        self.assertEqual((end["lines_added"], end["lines_removed"]), (0, 0))
+
+    def test_a_reloaded_page_can_still_show_the_refused_suggestion(self) -> None:
+        suggestion = self._generate()
+        self._reject(suggestion)
+        status, view = self.served.call("GET", "/api/card")
+        self.assertEqual(status, 200)
+        self.assertEqual(view["suggestion"]["suggestion_id"], suggestion["suggestion_id"])
+        self.assertIn("--- a/billing/core.py", view["suggestion"]["patch_diff"])
+        self.assertEqual(view["last_action"]["action"], "reject")
+        self.assertFalse(view["last_action"]["applied"])
+
+
+def _tree_digest(root: Path) -> dict[str, str]:
+    import hashlib
+
+    return {
+        path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
 class EndRouteTests(_Base):
     def test_ending_reports_the_outcome_and_closes_the_log(self) -> None:
         self.confirm_all()

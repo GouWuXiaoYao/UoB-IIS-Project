@@ -55,6 +55,7 @@ class App:
 
     def card_view(self) -> dict[str, Any]:
         confirmed = set(self.session.gate.confirmed_ids())
+        pending = self.session.last_suggestion()
         return {
             "condition": self.session.condition,
             "card_id": self.session.card.card_id,
@@ -64,6 +65,16 @@ class App:
             "n_required": self.session.card.n_required,
             "gate_open": bool(self.session.gate.open()),
             "missing": _missing(self.session),
+            "last_action": self.session.state()["last_action"],
+            "suggestion": (
+                None
+                if pending is None
+                else {
+                    "suggestion_id": pending.suggestion_id,
+                    "patch_diff": pending.patch_diff,
+                    "rationale_text": pending.rationale_text,
+                }
+            ),
             "items": [
                 {
                     "item_id": item.item_id,

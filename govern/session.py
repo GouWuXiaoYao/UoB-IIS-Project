@@ -263,6 +263,7 @@ class Session:
         self._opened_at = time.monotonic()
         self._prompt_at = 0.0
         self._last_suggestion: llm.Suggestion | None = None
+        self._last_action = None
         self._gate_open = False
         self._counts = {"suggestions": 0, "accepted": 0, "edits": 0, "rejects": 0}
 
@@ -400,6 +401,14 @@ class Session:
         return suggestion
 
     # -- review ----------------------------------------------------------
+    def last_suggestion(self) -> llm.Suggestion | None:
+        """The most recent suggestion, or ``None`` before anything was generated.
+
+        The page needs it after a reload: a tab that reconnects must be able to show
+        the pending suggestion rather than a card with no next step.
+        """
+        return self._last_suggestion
+
     def act(
         self,
         suggestion_id: str,
@@ -415,6 +424,11 @@ class Session:
             self._counts["accepted" if action == "accept" else "edits"] += 1
         elif action == "reject":
             self._counts["rejects"] += 1
+        self._last_action = {
+            "suggestion_id": suggestion_id,
+            "action": action,
+            "applied": action in ("accept", "edit"),
+        }
         self.logger.emit(
             "suggestion_action",
             **self._where("review"),
@@ -493,6 +507,7 @@ class Session:
             "card_id": self.card.card_id,
             "confirmed_ids": sorted(self.gate.confirmed_ids()),
             "gate_open": self._gate_open,
+            "last_action": self._last_action,
             "n_events": self._n_events(),
             "ended": self._ended,
         }

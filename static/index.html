@@ -73,6 +73,15 @@ function say(text, me) {
   transcript.appendChild(d);
 }
 
+// One place that reveals the suggestion, used both by the click flow and by a
+// reload: a tab that reconnects must show the pending patch, not an empty panel.
+function showSuggestion(body) {
+  el('after').hidden = false;
+  el('diff').textContent = body.patch_diff;
+  el('why').textContent = body.rationale_text;
+  el('diff').setAttribute('data-suggestion-id', body.suggestion_id);
+}
+
 async function post(path, payload) {
   const res = await fetch(path, {
     method: 'POST',
@@ -204,10 +213,7 @@ el('confirm').addEventListener('click', async () => {
 el('generate').addEventListener('click', async () => {
   try {
     const body = await post('/api/generate', {});
-    el('after').hidden = false;
-    el('diff').textContent = body.patch_diff;
-    el('why').textContent = body.rationale_text;
-    el('diff').setAttribute('data-suggestion-id', body.suggestion_id);
+    showSuggestion(body);
     say('Suggestion ' + body.suggestion_id + ' shown for review (not applied).');
   } catch (err) {
     say('Generation refused: ' + (err.error === 'gate_closed'
@@ -263,7 +269,18 @@ if (new URLSearchParams(location.search).has('playback')) {
     .then((view) => {
       renderCard(view);
       updateCounter();
-      say('Reloaded from server state. The request text is not stored, so it cannot be shown again.', false);
+      if (view.suggestion) {
+        showSuggestion(view.suggestion);
+      }
+      if (view.last_action && view.last_action.action === 'reject') {
+        say('Suggestion rejected; the working copy is untouched.', false);
+      } else if (view.last_action && view.last_action.applied) {
+        say('Patch applied to the working copy.', false);
+      } else if (view.suggestion) {
+        say('Suggestion ' + view.suggestion.suggestion_id + ' shown for review (not applied).', false);
+      } else {
+        say('Reloaded from server state. The request text is not stored, so it cannot be shown again.', false);
+      }
     })
     .catch(() => say('Could not reload the card from the server.'));
 }

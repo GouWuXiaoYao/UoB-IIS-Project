@@ -1,0 +1,17 @@
+Frame 4 (4-c1-reject.png): what the refusal promised, and what happened.
+
+Author self-test. The session is a scripted IMAGINARY participant (P01) replaying
+recordings; no human was involved and no model was called.
+
+task: T-L01a   condition: C1   session: S-SB-C1
+files hashed: 5   changed after the refusal: 0   added: 0
+work tree identical: True
+
+log events produced by the refusal:
+  seq 13  suggestion_action  action=reject accepted_after_gate=True dwell_ms=2400
+  seq 16  task_end  submitted=False n_accepted=0 n_rejects=1 tests_pass=False n_fail=2
+
+ending via POST /api/end answered n_fail=2 lines_added=0 lines_removed=0
+
+Every path above is relative to the session's working copy
+(.scratch/storyboard/run/work/S-SB-C1/T-L01a), which is copied from corpus/T-L01a/repo.
