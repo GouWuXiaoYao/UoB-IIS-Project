@@ -145,17 +145,17 @@ BLOCKS: list[tuple[str, object]] = [
      "verified each assisted row, so the boundary is auditable rather than asserted."),
     ("h1", "4  Evidence, and what it does not show"),
     ("p",
-     "Three results survive scrutiny. The impact set reaches 1.00 recall and 1.00 precision against "
+     "Three results survive. The impact set reaches 1.00 recall and 1.00 precision against "
      "labels written before the analyser existed. A gate refuses a card that hides an item, and generation "
      "below the dwell time. Assignment is deterministic and "
      "balanced: 300 sessions per condition, chi-square p = 1.000. Three results do not "
      "survive. Outcome metrics are identical across conditions because the scripted operator confirms "
      "everything and accepts the first suggestion, so no effect is attributable to governance. The "
      "escape rate of 1.00 is an artefact: each recording omits one consumer. Task "
-     "duration is wall-clock time, so it moves with the machine: three runs of the same harness gave "
-     "p = 0.058, 0.036 and 0.035, one surviving Holm correction. A value that crosses the threshold with "
-     "machine load is not a finding. What remains is an apparatus a reader can recompute, and a null "
-     "result reported as null."),
+     "duration is wall-clock time, so it moves with the machine: four runs of the same harness gave "
+     "p = 0.058, 0.036, 0.036 and 0.035, and the Holm decision flips. A value that crosses the "
+     "threshold with load is not a finding. What remains is an apparatus a reader can "
+     "recompute, and a null result reported as null."),
     ("h1", "References"),
     ("ref", "Gao, Z., Muñoz Barón, M., Habiba, U., Graziotin, D. and Wagner, S. (2026) 'Evaluating the impact of explainable AI on trust in AI-assisted code review', Proceedings of the ACM on Software Engineering, 3(ISSTA), Article ISSTA093, pp. 1-23."),
     ("ref", "Roy, R., Khasgiwala, V. and Joshi, V. (2026) 'Generative AI and technical debt in software development: productivity gains versus code quality and security risk', International Journal of Computer Information Systems and Industrial Management Applications, 18(22s), pp. 331-348."),

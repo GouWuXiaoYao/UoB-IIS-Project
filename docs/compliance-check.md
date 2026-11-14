@@ -271,9 +271,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
 |---|---|---|---|
 | 1 | 标准库测试套件 | `python -m unittest discover -s tests -q` | `Ran 446 tests in 40.283s` / `OK (skipped=2)` / exit 0 |
 | 2 | 一条命令自检 | `python -m govern.run --selftest` | `ok: 6 tasks, 6 cards` / exit 0 |
-| 3 | 密钥与端点扫描 | `python tools/scan_secrets.py` | `ok: 0 finding(s) in 176 files` / exit 0 |
+| 3 | 密钥与端点扫描 | `python tools/scan_secrets.py` | `ok: 0 finding(s) in 189 files` / exit 0 |
 | 4 | 溯源台账 | `python -m govern.provenance --check` | `ok: 31 rows, 11 modules covered (original=10, reused=3, assisted=18)` / exit 0 |
-| 5 | 一条命令复现 | `powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1` | `ok: 6 of 6 steps passed` / exit 0（写入 `_repro/20261114-230839/`；`runs\`、`analysis\`、`dist\` 未被触碰） |
+| 5 | 一条命令复现 | `powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1` | `ok: 6 of 6 steps passed` / exit 0（写入 `_repro/20261114-232213/`；`runs\`、`analysis\`、`dist\` 未被触碰） |
 
 复现那一步产出的表（与仓库自带的 `runs/E-SIM-01` 不同，原因见 §5.2）：
 
@@ -282,7 +282,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
 | C0 | 6 | 1.00 | -3.67 | 0.00 | 0.00 |
 | C1 | 6 | 1.00 | -3.67 | 0.00 | 1.00 |
 
-其中 `Task time` 的配对检验这一次给出 `diff = -16.33`、`p = 0.036`，并且 `multiplicity: 1 tests, 1 survive Holm at alpha=0.05`；仓库自带那一轮是 `p = 0.058`（0 个存活）。**同一份代码、同一份配置，只是墙钟时长的抽样不同**，所以这一项既不稳定也不可引用——报告 §4 已按这个事实改写（三次运行分别 0.058 / 0.036 / 0.035）。
+其中 `Task time` 的配对检验这一次给出 `diff = -6.33`、`p = 0.036`，并且 `multiplicity: 1 tests, 1 survive Holm at alpha=0.05`；仓库自带那一轮是 `p = 0.058`（0 个存活）。四次运行分别是 0.058 / 0.036 / 0.036 / 0.035，**同一份代码、同一份配置，只是墙钟时长的抽样不同**，Holm 的判定也跟着翻——所以这一项既不稳定也不可引用，报告 §4 已按这个事实改写。
 
 交付快照：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（161 条目、696,791 字节、`sha256:07651cd4ac339adc4a23104abb5541b5591dda4883bf7fffce2464989266b40c`，对应提交 `d616cd9` 的树），`--verify` 通过，两次构建同一 hash。记录这个 hash 的文字本身也在归档里，所以之后重建必然得到不同 hash——复核请看 `docs/rubric-mapping.md` §2j 的"自指说明"。
 
