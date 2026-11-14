@@ -35,4 +35,4 @@
 | P-018 | M9 | reused | 参考代码库/tools.py | 借用其"校验 → 要求确认 → 再执行 → 写 jsonl"的边界，对应本项目的影响卡 → 门控 → 生成 → 日志 | `storyboards/README.md` 的日志序列 | 8662f36 |
 | P-019 | M10 | assisted | - | 校验器与本文档的第一版由 AI 生成；审阅后改了两处：行内格数不符必须报错（否则 assisted 行丢字段无人发现）、`reused` 的 `source` 必须真实存在 | `govern.provenance --selftest`；`tests/test_provenance.py` 全绿 | bcf9e31 |
 | P-020 | M11 | original | - | 台账字段（item_id/module/origin/source/decision/check/commit）是为了让 A2 的 "distinguishes original, reused and assisted work" 可被机器检查，A2 本身未规定字段名 | `python -m govern.provenance --check` → `ok:` | bcf9e31 |
-| P-021 | M8 | assisted | - | `experiments/` 编排层由 AI 起草；审阅时改了三处：条件文件只描述结构、参数一律留在 `config/`（否则同一阈值有两处定义）、失败必须写 `failures.jsonl` 而不是只打印（否则"单条失败不中断"会变成静默丢数据）；YAML 支持收窄为"子集之外一律报错"而不是猜 | `python -m experiments.run --config conditions.yaml --dry-run`；`tests/test_experiments.py` 全绿 | 待填 |
+| P-021 | M8 | assisted | - | `experiments/` 编排层由 AI 起草；审阅时改了三处：条件文件只描述结构、参数一律留在 `config/`（否则同一阈值有两处定义）、失败必须写 `failures.jsonl` 而不是只打印（否则"单条失败不中断"会变成静默丢数据）；YAML 支持收窄为"子集之外一律报错"而不是猜 | `python -m experiments.run --config conditions.yaml --dry-run`；`tests/test_experiments.py` 全绿 | f31ce4d |
