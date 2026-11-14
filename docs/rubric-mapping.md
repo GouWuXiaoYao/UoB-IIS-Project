@@ -16,7 +16,7 @@
 | 评分项（A2） | 本项目落点 | 证据（文件:行号 / 测试名） | 状态 |
 |---|---|---|---|
 | **Design reasoning and scope** | SPEC 1–2 章（RQ / 假设 / 设计）+ 每次范围收缩的记录 | `docs/SPEC.md` 6.0 决议表（Q1–Q8 八条拍板）；`docs/SPEC.md` 3.0 交付集表（MUST / SIM / PLAN / N/A 四态）；`docs/PLAN.md` 里程碑 M0–M11 | M0–M2 已落地，其余按里程碑推进 |
-| **Developed interaction** | SPEC 第 3 章模块清单；M4 评估卡、M5 渲染、M6 门控 | `govern/corpus.py:126` `check_task()` 产出的可运行仓库，是"用户任务"的输入侧；卡与门已落地：`govern/card.py:65` `build()`、`:108` `to_html()`、`govern/gate.py:57` `toggle()`、`:72` `decide()` | 交互链路还差日志与界面（M5、M9）；卡与门已可演示 `待补（M5/M9）` |
+| **Developed interaction** | SPEC 第 3 章模块清单；M4 评估卡、M5 渲染、M6 门控 | `govern/corpus.py:126` `check_task()` 产出的可运行仓库，是"用户任务"的输入侧；卡与门已落地：`govern/card.py:65` `build()`、`:108` `to_html()`、`govern/gate.py:57` `toggle()`、`:72` `decide()`；日志器 `govern/log.py:320` `Logger` 已能写 16 类事件 | 卡、门、日志、LLM 客户端、评估器均已落地；**界面（M9）与会话控制器（M8）未做**，故交互链路目前只能在单测与 `--selftest` 里演示 |
 | **Architecture and technical reasoning** | `govern/` 模块边界 + 零运行时依赖约束 | `AGENTS.md` §2 六条硬规则；`govern/patch.py:102` `apply_unified_diff()`（不依赖 git/patch 的离线打补丁）；`govern/corpus.py:79` `_run_hidden()`（隐藏测试在副本中执行，语料只读）；`govern/impact.py:170` `analyze()`（纯 `ast`，无模型、无网络，见 `tests/test_impact.py:122` 的跨进程哈希一致性）；`govern/gate.py:35` 的门会校验卡（`required_ids` 与 `n_required` 不符即拒绝） | M0–M4 已落地 |
 | **Development evidence and authorship** | 里程碑即提交单元；每个验收都有命令与输出 | `docs/rubric-mapping.md` 本文件第 2 节；`git log` 每次提交对应一个里程碑；证据命令见第 4 节 | 持续维护 |
 
@@ -111,7 +111,7 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ## 2e. LLM 客户端验收 → 证据（SPEC M3 六条，PLAN 里程碑 M6）
 
-验收命令：`python -m govern.llm --selftest` → `ok: 6 recordings, 10 replays each, 6/6 identical, no network used`；`python tools/scan_secrets.py` → `ok: 0 finding(s) in 105 files`。
+验收命令：`python -m govern.llm --selftest` → `ok: 6 recordings, 10 replays each, 6/6 identical, no network used`；`python tools/scan_secrets.py` → `ok: 0 finding(s) in 110 files`。
 
 | # | 验收标准 | 证据 | 覆盖测试 |
 |---|---|---|---|
@@ -127,6 +127,26 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ---
 
+## 2f. 结果评估器验收 → 证据（SPEC M8 六条，PLAN 里程碑 M7）
+
+验收命令：`python -m govern.score --selftest` → `ok: 6 rules (complexity, duplication, bare_except, hardcoded_secret, eval_usage, sql_concat) with positive and negative fixtures, gold 6/6, clean repository 0 debt (score/1.0.0+sha256:5cbf3...)`；`python -m govern.hidden --selftest` → `ok: hidden suite runner reports pass/fail in a child interpreter`。
+
+| # | 验收标准 | 证据 | 覆盖测试 |
+|---|---|---|---|
+| M8-1 | 打上 gold patch 后隐藏测试全过；未改动的仓库即基线（不改仓库 = 不产生正确性收益） | `govern/score.py:352` `baseline()` 在种子仓库上跑一次隐藏套件；`:392` `evaluate()` 在提交副本上重跑；实测 H 层基线 `n_fail=5`、gold 后 `tests_pass=True` | `test_gold_patch_passes_the_hidden_suite`（`tests/test_score.py:226`）、`test_an_unmodified_repository_fails_the_hidden_suite`（`:237`）、`test_baseline_reports_the_starting_state`（`:217`） |
+| M8-2 | 指标是"提交后 − 开始前"，且确定性、与文件遍历顺序无关 | `:373` `_line_delta()` 用 `difflib` 逐文件比对；`:317` `scan_repo()` 与 `:304` `_python_files()` 都按路径排序后遍历；`:332` `counts()` 先铺满六类再累加，缺项不缺失 | `test_deltas_are_after_minus_before`（`:247`）、`test_line_counts_describe_the_change`（`:259`）、`test_counts_are_deterministic`（`:148`） |
+| M8-3 | `scorer_version` 与 `rules.json` 的 hash 写进每条 `task_end` / `suggestion_scored` | `:102` `rules_hash()` 对 canonical JSON 取 SHA-256；`:108` `scorer_version()` = `score/1.0.0+sha256:…`；`:422` `scored_event()` 把它放进 `suggestion_scored` 负载 | `test_the_version_carries_the_rules_hash`（`:206`）、`test_a_different_rules_file_changes_the_version`（`:210`）、`test_the_scored_event_matches_the_log_schema`（`:319`，经真实 `Logger.emit()` 写出后 `log.validate()` 为空） |
+| M8-4 | 隐藏测试在子进程沙箱里跑，超时**强杀**，不拖垮会话 | `govern/hidden.py:49` `run()` 用 `Popen` + `communicate(timeout=…)`，超时 `kill()` 后 `communicate()` 收尾并关闭管道；`:343` `run_hidden_tests()` 是其唯一调用方；超时上限来自 `config.test_timeout_s` | `test_a_hanging_suite_is_killed_and_reported`（`:289`）、`test_a_failing_test_is_named`（`:307`）、`tests/test_hidden.py` 的 IsolationTests（挂死 2 s 被强杀、空套件算错误、import 爆炸被捕获、`sys.exit` 被捕获） |
+| M8-5 | 六类规则各有正例 + 反例测试；缺一条即视为该规则未实现 | `config/rules.json` 六条规则各带 `rule_id/category/severity/weight` 与阈值（complexity 40 行/4 层、duplication 6 行、裸 `except`、硬编码密钥、`eval`/`exec`、SQL 拼接）；实现见 `govern/score.py:137-270` | 每组两条以上：`test_a_long_function_is_flagged`/`test_a_short_function_is_clean`（`:35`/`:40`）、`test_a_repeated_block_is_flagged_once_per_extra_copy`/`test_a_single_copy_is_clean`（`:62`/`:68`）、`test_a_bare_except_is_flagged`/`test_a_typed_except_is_clean`（`:74`/`:78`）、`test_a_key_literal_is_flagged`/`test_an_environment_lookup_is_clean`（`:83`/`:91`）、`test_eval_is_flagged`/`test_literal_eval_is_not_flagged`（`:99`/`:107`）、`test_concatenated_sql_is_flagged`/`test_a_parameterised_query_is_clean`（`:112`/`:120`） |
+| M8-6 | `is_correct` 的判据必须**写在文档里**，不能只藏在代码里 | `govern/score.py:416` `is_correct()` 的实现在 docstring 里逐字写明："correct iff applying it reduces the number of failing hidden tests (`after.n_fail < before.n_fail`)"；模块 docstring 顶部同样陈述 | `test_is_correct_requires_an_improvement`（`:269`：少失败一条即正确、失败数不变即不正确） |
+
+**两条如实记录（属于"计划内但有代价"的取舍）**
+
+1. **轻层任务的 `debt_delta` 结构上恒为 0**：六类规则量的是复杂度/重复/异常/密钥/`eval`/SQL 拼接，而 L 层语料的坏味道是"浮点金额 + 模块级缓存 + 报告重复推导税额"（见第 3 节递进表）。实测 L=0、M=3、H=8 加权债。因此债务指标只在 M/H 层有区分度；L 层的正确性收益由隐藏测试与 `lines_added/removed` 承载。这条写进了第 6 节，报告里也不得声称"每层都能测出债务下降"。
+2. **`debt_delta` 以 float 写入日志**：`Outcome.debt_delta` 是整数加权计数之差，但 SPEC 4.3 的 `task_end.debt_delta` 字段类型是 float，`govern/log.py` 会按 float 校验，故在 `evaluate()` 里显式 `float(...)`（`:392`）。这不是精度需要，而是 schema 一致性。
+
+---
+
 ## 3. 模块级证据
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
@@ -137,9 +157,12 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | `govern/impact.py` | 新增（M3 = SPEC M4） | `analyze()` `:170`；`recall_precision()` `:284`；`impact_hash()` `:265`；`risk_level()` `:272` | `tests/test_impact.py`（18 条：recall/precision、负对照、风险分层、健壮性、确定性、性能、CLI）；`python -m govern.impact --selftest` → `ok: recall=1.00 precision=1.00 on 6 tasks (min recall 1.00, min precision 0.80)` |
 | `govern/card.py` | 新增（M4 = SPEC M5） | `build()` `:65`；`to_html()` `:108`；`CardItem` `:34`、`Card` `:44` | `tests/test_card.py`（16 条）；`python -m govern.card --selftest` → `ok: T-L01a card has 5 items, 5 required, no patch text` |
 | `govern/gate.py` | 新增（M4 = SPEC M6） | `Gate.toggle()` `:57`、`decide()` `:72`、`open()` `:82`、`issue_token()` `:87`、`consume_token()` `:97`；`PassThroughGate` `:105` | `tests/test_gate.py`（19 条）；`python -m govern.gate --selftest` → `ok: 6 cards, blocked until every item is confirmed, C0 passthrough, min dwell 800 ms` |
+| `govern/hidden.py` | 新增（M7 = SPEC M8 验收 4） | `RUNNER` `:21`（子解释器脚本）；`run(repo, hidden, timeout_s)` `:49`（`Popen` + 超时强杀，返回 `code/failures/n`）；`_selftest()` `:89` | `tests/test_hidden.py`（10 条：通过/失败/import 爆炸/`sys.exit`/挂死强杀/空套件/仓库内导入/噪声输出/自检）；`python -m govern.hidden --selftest` → `ok: hidden suite runner reports pass/fail in a child interpreter` |
+| `govern/score.py` | 新增（M7 = SPEC M8） | `load_rules()` `:92`；`rules_hash()` `:102`；`scorer_version()` `:108`；`debt()` `:120`；`vuln()` `:125`；`scan_repo()` `:317`；`counts()` `:332`；`run_hidden_tests()` `:343`；`baseline()` `:352`；`_line_delta()` `:373`；`evaluate()` `:392`；`is_correct()` `:416`；`scored_event()` `:422` | `tests/test_score.py`（41 条：六类规则各正反例、权重、语料阶梯、确定性、版本 hash、基线/评估、隔离、事件、CLI）；`python -m govern.score --selftest` → `ok: 6 rules (…) with positive and negative fixtures, gold 6/6, clean repository 0 debt` |
+| `config/rules.json` | 新增（M7，Q6 的落点） | 六条规则各带 `rule_id/category/severity/weight` 与阈值；`version 1.0.0` | `test_every_rule_declares_id_severity_and_weight`（`tests/test_score.py:134`）、`test_the_six_categories_are_exactly_the_spec_list`（`:140`） |
 | `govern/log.py` | 新增（M5 = SPEC M7） | `SCHEMA_VERSION` `:25`；`ENVELOPE` `:70`；`EVENT_FIELDS` `:91`；`validate()` `:260`；`Logger` `:320`；`scan_pii()` `:447`；`purge()` `:480` | `tests/test_log.py`（34 条）；`python -m govern.log --selftest` → `ok: 16 event types, seq from 1, atomic append, purge clean` |
 | `govern/llm.py` | 新增（M6 = SPEC M3） | `Context.for_task()` `:95`；`Context.sha256()` `:135`；`Suggestion.content_hash()` `:168`；`Client.generate()` `:246`；`_replay()` `:266`；`_live()` `:285`；`_record()` `:349`；`_selftest()` `:397` | `tests/test_llm.py`（38 条）；`python -m govern.llm --selftest` → `ok: 6 recordings, 10 replays each, 6/6 identical, no network used` |
-| `tools/scan_secrets.py` | 新增（M6 = SPEC 3.11 第 5 条） | `_PATTERNS` `:38`；`scan_text()` `:50`；`scan_paths(paths, root=None)` `:67`；`tracked_files()` `:99`；`main()` `:123` | `tests/test_secrets.py`（14 条）；`python tools/scan_secrets.py` → `ok: 0 finding(s) in 105 files` |
+| `tools/scan_secrets.py` | 新增（M6 = SPEC 3.11 第 5 条） | `_PATTERNS` `:38`；`scan_text()` `:50`；`scan_paths(paths, root=None)` `:67`；`tracked_files()` `:99`；`main()` `:123` | `tests/test_secrets.py`（14 条）；`python tools/scan_secrets.py` → `ok: 0 finding(s) in 110 files` |
 | `tools/make_recordings.py` | 新增（M6，PLAN 未列） | `suggest()` `:70`；`recording()` `:91`；`build()` `:112`；`selftest()` `:129` | `python tools/make_recordings.py --selftest` → `ok: 6 recordings match the factory` |
 | `recordings/` | 数据（`source: "sim"`） | `recordings/qwen2.5-coder-7b/<request_sha256>.json`，6 个任务各一条 | `test_the_repository_ships_one_recording_per_task`（`tests/test_llm.py:381`）、`test_the_shipped_recordings_match_the_factory`（`:393`） |
 | `corpus/` | 数据 | `corpus/index.json`；`PAIR-01`=`T-L01a`(billing)/`T-L01b`(loans) 层 L；`PAIR-02`=`T-L02a`(ticketing)/`T-L02b`(payroll) 层 M；`PAIR-03`=`T-L03a`(inventory)/`T-L03b`(fleet) 层 H | `test_index_holds_three_pairs`（`tests/test_corpus.py:34`）、`test_every_task_directory_is_complete`（`:51`） |
@@ -187,12 +210,20 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 .\.venv\Scripts\python.exe tools\make_recordings.py --selftest
 .\.venv\Scripts\python.exe tools\scan_secrets.py
 
+# 结果评估器验收（M7 = SPEC M8）：六类规则各带正反例、gold 6/6、干净仓库 0 债务
+.\.venv\Scripts\python.exe -m govern.score --selftest
+.\.venv\Scripts\python.exe -m govern.score --task T-L03a      # 打印某个任务的基线（债务/漏洞/失败测试）
+.\.venv\Scripts\python.exe -m govern.hidden --selftest        # 子进程跑隐藏套件的那一层
+
 # 项目自检
 .\.venv\Scripts\python.exe -m govern.run --selftest
 ```
 
 > 说明：`.venv/` 只是本机开发工具链（pytest 属**测试期**依赖，不进入运行时）；
-> 交付代码在 `govern/` 与 `tools/` 内，只用标准库，`python -m govern.corpus --check` 在裸 Python 3.11+ 上同样可用。
+> 交付代码在 `govern/` 与 `tools/` 内，只用标准库。隐藏测试套件自 M7 起由
+> `govern/hidden.py` 用标准库在子解释器里跑（不再需要 pytest），所以
+> `python -m govern.corpus --check` 与 `python -m govern.score --selftest`
+> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（202 条）。
 
 ---
 
@@ -229,6 +260,9 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | 新增 `tools/make_recordings.py` 与 `recordings/`（M6） | 本机没有任何 API 凭据，若等真实调用就永远没有可复现的 replay；SPEC M3 验收 2 要求"录制完整可复现" | 录制由工厂从 gold patch 派生并标 `source: "sim"`，可逐字节重建（`--selftest` 校验）；这是**模拟**建议，不是模型输出，报告里如实说明 |
 | `Client.__init__` 增加可选 `logger`（M6） | `generation_request` / `integrity_event` 必须有地方写；PLAN 的构造签名没有日志参数 | 关键字参数默认 `None`（不写日志），`Client(config, mode, recordings, api_key_env)` 调用方式不变 |
 | 端点从 `A2_API_BASE` 读取（M6） | PLAN 只规定密钥从环境变量取，没说端点从哪来；写进 config 就违反了"无端点入库" | 与 `A2_API_KEY` 同一策略：只有环境变量，`EndpointMissing` 有单独错误码与测试 |
+| 新增 `govern/hidden.py`（M7） | 隐藏套件原来由 `govern/corpus.py` 用 `python -m pytest` 跑（需要 `.venv`）。AGENTS §1.1 要求"零第三方运行时依赖"，且硬规则 1 的验收命令是裸 `python -m unittest discover`——实测在裸 Python 上 `corpus --check` 直接失败（`No module named pytest`） | 抽出标准库子解释器运行器，`corpus` 与 `score` 共用；pytest 回归为**仅测试期**工具。副作用：`corpus --check` 的 `baseline=` 原因文本变长为 `test_x.py::test_y: AssertionError: …`（更精确，汇总行不变） |
+| `corpus._run_hidden()` 改为调用 `hidden.run()`（M7） | 同上；另外 pytest 的退出码含义与"套件挂死/读不出报告"混在一起，超时也无法区分 | 返回码语义变成 `0 通过 / 1 有失败 / 2 未完成`；`_failure_reason()` 未改动，仍能从失败清单里取第一行 |
+| `debt_delta` 以 float 写入（M7） | SPEC 4.3 的 `task_end.debt_delta` 是 float，`log.validate()` 按 float 校验；整数加权计数之差在 schema 上会被判类型错 | `Outcome.debt_delta: float`，`evaluate()` 里显式 `float(...)`；`vuln_delta` 仍是 int |
 
 ---
 
@@ -242,6 +276,9 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 - 评估卡与门控（SPEC M5/M6 / PLAN M4）**已实现**，但还**没有接线到一次真正的会话**：现在只能通过 `python -m govern.card` 渲染、通过 `python -m govern.gate --selftest` 复演不变量。
 - 遥测日志器（SPEC M7 / PLAN M5）**已实现**，但**还没有任何真实会话给它写事件**：`runs/` 下的日志目前只由测试与 `--selftest` 产生。
 - LLM 客户端（SPEC M3 / PLAN M6）**已实现**，但只交付 `replay` 模式：`live` 需要 `A2_API_BASE` + `A2_API_KEY`，本机没有，故从未对真实服务发起过请求。
-  会话控制器与 Web 界面（SPEC M8/M9，PLAN 的 M8/M9）尚未实现，所以"用户动作 → 系统响应"的交互链路、以及由真实会话日志重算的指标，目前**都不可演示**，不得声称可演示。
+- 结果评估器（SPEC M8 / PLAN M7）**已实现**，但**没有跑过任何一次会话**：`baseline()`/`evaluate()` 只在 6 个种子仓库与测试里的构造样本上验证过，`debt_delta`/`vuln_delta`/`lines_added` 还没有一条来自真实会话的数据。
+  - 已实测的覆盖缺口：六类规则**测不到**轻层语料的坏味道（浮点金额、模块级缓存、语义重复的税额推导），L 层 `debt=0`，M=3，H=8（加权）。因此"债务下降"只在 M/H 层可测；L 层靠隐藏测试与行数指标。这一条不得在报告里含糊成"每层都能测出债务下降"。
+- 端到端指标重算（SPEC M10 `analysis/`）是 **N/A**（SPEC 3.0 交付集），所以"由日志重算全部指标"这条链路**没有实现**；`govern.log --purge` 之后无法重算依赖已删数据的结论，这一点在 SPEC M7 验收 7 里已如实降级记录。
+- 会话控制器与 Web 界面（SPEC M8/M9，PLAN 的 M8/M9）尚未实现，所以"用户动作 → 系统响应"的交互链路、以及由真实会话日志重算的指标，目前**都不可演示**，不得声称可演示。
 - M7 验收 7 的**后半句**（重算 `analysis/` 时报告哪些结论依赖已删除数据）未实现：`analysis/`（SPEC M10）按 Q8 是 **N/A**，本期没有重算脚本，因此 `purge` 只交付"删除清单"这一半。
 - 六个种子仓库是**自建语料**（Q4 拍板的结果），不是真实开源仓库的历史；它们只用于让"影响分析 recall / precision"可判分。

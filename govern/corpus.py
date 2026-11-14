@@ -20,7 +20,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from govern import config, patch, tasks
+from govern import config, hidden as hidden_mod, patch, tasks
 
 CORPUS_ROOT = Path("corpus")
 SCRATCH_ROOT = Path(__file__).resolve().parent.parent / ".scratch"
@@ -77,18 +77,17 @@ def _materialise(task: tasks.Task, workdir: Path) -> tuple[Path, Path]:
 
 
 def _run_hidden(repo: Path, hidden: Path) -> tuple[int, str]:
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(repo)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
-    proc = subprocess.run(
-        [sys.executable, "-m", "pytest", str(hidden), "-q", "-p", "no:cacheprovider"],
-        cwd=str(repo),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=180,
-    )
-    return proc.returncode, proc.stdout + proc.stderr
+    """Run the hidden suite through the stdlib runner (no third-party imports)."""
+    code, failures, n = hidden_mod.run(repo, hidden, _hidden_timeout())
+    if code == 0:
+        return 0, f"{n} passed"
+    if code == 2:
+        return 2, failures[0] if failures else "runner produced no output"
+    return 1, "\n".join(failures)
+
+
+def _hidden_timeout() -> int:
+    return int(config.load().test_timeout_s)
 
 
 def _failure_reason(output: str, returncode: int) -> str:

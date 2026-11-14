@@ -1,0 +1,51 @@
+{
+  "version": "1.0.0",
+  "note": "Six fixed rule categories (Q6). Every threshold lives here, never in code (AGENTS.md 2.4).",
+  "rules": [
+    {
+      "rule_id": "complexity",
+      "category": "complexity",
+      "severity": "medium",
+      "weight": 2,
+      "max_function_lines": 40,
+      "max_branch_depth": 4
+    },
+    {
+      "rule_id": "duplication",
+      "category": "duplication",
+      "severity": "medium",
+      "weight": 2,
+      "block_lines": 6,
+      "max_occurrences": 1
+    },
+    {
+      "rule_id": "bare_except",
+      "category": "bare_except",
+      "severity": "high",
+      "weight": 3
+    },
+    {
+      "rule_id": "hardcoded_secret",
+      "category": "hardcoded_secret",
+      "severity": "high",
+      "weight": 5,
+      "min_secret_length": 12,
+      "secret_name_pattern": "(?i)(secret|token|passw|api[_-]?key|credential|private[_-]?key)",
+      "secret_prefixes": ["sk-", "ghp_", "AKIA", "xoxb-"]
+    },
+    {
+      "rule_id": "eval_usage",
+      "category": "eval_usage",
+      "severity": "high",
+      "weight": 5,
+      "forbidden_calls": ["eval", "exec"]
+    },
+    {
+      "rule_id": "sql_concat",
+      "category": "sql_concat",
+      "severity": "high",
+      "weight": 4,
+      "sql_keywords": ["SELECT", "INSERT", "UPDATE", "DELETE"]
+    }
+  ]
+}
