@@ -33,5 +33,5 @@
 | P-016 | M8 | original | - | 规则阈值、权重、严重度全部写进 `config/rules.json`，代码里不留数字（零魔法数字） | `tests/test_score.py::test_every_rule_declares_its_thresholds` | 090e5a0 |
 | P-017 | M9 | assisted | - | 页面由 AI 起草；第一版把拦截提示渲染成条目 ID（`T-L01a-side_effect-003`），审阅后改为陈述文本，否则用户只能机械勾选 | 逐张读图核对三帧；`tests/test_web.py` | 8662f36 |
 | P-018 | M9 | reused | 参考代码库/tools.py | 借用其"校验 → 要求确认 → 再执行 → 写 jsonl"的边界，对应本项目的影响卡 → 门控 → 生成 → 日志 | `storyboards/README.md` 的日志序列 | 8662f36 |
-| P-019 | M10 | assisted | - | 校验器与本文档的第一版由 AI 生成；审阅后改了两处：行内格数不符必须报错（否则 assisted 行丢字段无人发现）、`reused` 的 `source` 必须真实存在 | `govern.provenance --selftest`；`tests/test_provenance.py` 全绿 | 待填 |
-| P-020 | M11 | original | - | 台账字段（item_id/module/origin/source/decision/check/commit）是为了让 A2 的 "distinguishes original, reused and assisted work" 可被机器检查，A2 本身未规定字段名 | `python -m govern.provenance --check` → `ok:` | 待填 |
+| P-019 | M10 | assisted | - | 校验器与本文档的第一版由 AI 生成；审阅后改了两处：行内格数不符必须报错（否则 assisted 行丢字段无人发现）、`reused` 的 `source` 必须真实存在 | `govern.provenance --selftest`；`tests/test_provenance.py` 全绿 | bcf9e31 |
+| P-020 | M11 | original | - | 台账字段（item_id/module/origin/source/decision/check/commit）是为了让 A2 的 "distinguishes original, reused and assisted work" 可被机器检查，A2 本身未规定字段名 | `python -m govern.provenance --check` → `ok:` | bcf9e31 |
