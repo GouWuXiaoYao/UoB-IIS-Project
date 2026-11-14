@@ -1,0 +1,29 @@
+{
+  "format": "recording/1",
+  "latency_ms": 0,
+  "model_id": "qwen2.5-coder:7b",
+  "model_temperature": 0.2,
+  "request_sha256": "sha256:730beb4c13e8b9f524f6a0fb4d5e4eb682a7b2b9dce5bf1131e2477e4ac8ab5e",
+  "response": {
+    "layers": {
+      "L1": "state: amounts are stored as integer minor units",
+      "L2": "call sites: tax is added once, at the reporting boundary"
+    },
+    "patch_diff": "--- a/inventory/audit.py\n+++ b/inventory/audit.py\n@@ -2,8 +2,8 @@\n \n \n def gross_cents(base_cents, quantity):\n-    return int(base_cents / 100.0 * quantity * 100)\n+    return int(base_cents) * quantity\n \n \n def with_tax(cents):\n-    return int(cents / 100.0 * (1 + state.TAX_RATE) * 100)\n+    return (cents * (100 + state.TAX_PERCENT) + 50) // 100\n--- a/inventory/core.py\n+++ b/inventory/core.py\n@@ -1,18 +1,24 @@\n from inventory import state\n \n \n-def unit_amount(key, base_cents):\n-    return state.remember(key, base_cents / 100.0)\n+def unit_amount(base_cents):\n+    return int(base_cents)\n \n \n def total(lines):\n-    amount = 0.0\n-    for key, quantity, base_cents in lines:\n-        amount += unit_amount(key, base_cents) * quantity\n-    return round(amount * (1 + state.TAX_RATE), 2)\n+    amount = 0\n+    for _key, quantity, base_cents in lines:\n+        amount += unit_amount(base_cents) * quantity\n+    return _with_tax(amount)\n \n \n-def discounted(lines, expression):\n+def _with_tax(cents):\n+    return (cents * (100 + state.TAX_PERCENT) + 50) // 100\n+\n+\n+def discounted(lines, percent):\n     amount = total(lines)\n-    percent = eval(expression)\n-    return round(amount * (1 - percent / 100.0), 2)\n+    rate = int(str(percent))\n+    if rate < 0 or rate > 100:\n+        raise ValueError(\"discount percent out of range\")\n+    return amount - (amount * rate + 50) // 100\n--- a/inventory/export.py\n+++ b/inventory/export.py\n@@ -1,13 +1,12 @@\n-from inventory import core, state\n+from inventory import core\n \n \n def rows(lines):\n-    out = [\"key,amount\"]\n+    out = [\"key,amount_cents\"]\n     for key, quantity, base_cents in lines:\n-        unit = round(base_cents / 100.0 * (1 + state.TAX_RATE), 2)\n-        out.append(\"%s,%.2f\" % (key, unit * quantity))\n+        out.append(\"%s,%d\" % (key, core.unit_amount(base_cents) * quantity))\n     return \"\\n\".join(out) + \"\\n\"\n \n \n def total_cents(lines):\n-    return int(core.total(lines) * 100)\n+    return core.total(lines)\n--- a/inventory/reports.py\n+++ b/inventory/reports.py\n@@ -1,18 +1,8 @@\n-from inventory import state\n-\n-\n-def _recompute(lines):\n-    subtotal = 0.0\n-    for _key, quantity, base_cents in lines:\n-        subtotal += base_cents / 100.0 * quantity\n-    return round(subtotal * (1 + state.TAX_RATE), 2)\n+from inventory import core, state\n \n \n def summarise(lines):\n-    try:\n-        amount = _recompute(lines)\n-    except:\n-        amount = 0.0\n-    return \"GBP {:.2f} ({} items, tax {:.0f}%)\".format(\n-        amount, len(lines), state.TAX_RATE * 100\n+    cents = core.total(lines)\n+    return \"GBP {}.{:02d} ({} items, tax {}%)\".format(\n+        cents // 100, cents % 100, len(lines), state.TAX_PERCENT\n     )\n",
+    "rationale_text": "Convert the amounts to integer minor units inside the module and let the caller apply tax once. inventory.audit, inventory.core, inventory.export, inventory.reports, inventory.state is the module that owns the state.",
+    "touched_symbols": [
+      "inventory.audit.gross_cents",
+      "inventory.audit.with_tax",
+      "inventory.core.discounted",
+      "inventory.core.total",
+      "inventory.core.unit_amount",
+      "inventory.export.rows",
+      "inventory.export.total_cents",
+      "inventory.reports._recompute",
+      "inventory.reports.summarise",
+      "inventory.state.remember"
+    ]
+  },
+  "seed": 42,
+  "source": "sim"
+}

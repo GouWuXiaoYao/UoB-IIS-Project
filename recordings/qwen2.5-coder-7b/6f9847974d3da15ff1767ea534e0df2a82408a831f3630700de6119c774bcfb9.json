@@ -1,0 +1,24 @@
+{
+  "format": "recording/1",
+  "latency_ms": 0,
+  "model_id": "qwen2.5-coder:7b",
+  "model_temperature": 0.2,
+  "request_sha256": "sha256:6f9847974d3da15ff1767ea534e0df2a82408a831f3630700de6119c774bcfb9",
+  "response": {
+    "layers": {
+      "L1": "state: amounts are stored as integer minor units",
+      "L2": "call sites: tax is added once, at the reporting boundary"
+    },
+    "patch_diff": "--- a/loans/core.py\n+++ b/loans/core.py\n@@ -1,17 +1,21 @@\n from loans import state\n \n \n-def unit_amount(key, base_cents):\n-    return state.remember(key, base_cents / 100.0)\n+def unit_amount(base_cents):\n+    return int(base_cents)\n \n \n def total(lines):\n-    amount = 0.0\n-    for key, quantity, base_cents in lines:\n-        amount += unit_amount(key, base_cents) * quantity\n-    return round(amount * (1 + state.TAX_RATE), 2)\n+    amount = 0\n+    for _key, quantity, base_cents in lines:\n+        amount += unit_amount(base_cents) * quantity\n+    return _with_tax(amount)\n+\n+\n+def _with_tax(cents):\n+    return (cents * (100 + state.TAX_PERCENT) + 50) // 100\n \n \n def discounted(lines, percent):\n     amount = total(lines)\n-    return round(amount * (1 - percent / 100.0), 2)\n+    return amount - (amount * percent + 50) // 100\n--- a/loans/reports.py\n+++ b/loans/reports.py\n@@ -2,7 +2,7 @@\n \n \n def summarise(lines):\n-    amount = core.total(lines)\n-    return \"GBP {:.2f} ({} items, tax {:.0f}%)\".format(\n-        amount, len(lines), state.TAX_RATE * 100\n+    cents = core.total(lines)\n+    return \"GBP {}.{:02d} ({} items, tax {}%)\".format(\n+        cents // 100, cents % 100, len(lines), state.TAX_PERCENT\n     )\n",
+    "rationale_text": "Convert the amounts to integer minor units inside the module and let the caller apply tax once. loans.core, loans.reports, loans.state is the module that owns the state.",
+    "touched_symbols": [
+      "loans.core.discounted",
+      "loans.core.total",
+      "loans.core.unit_amount",
+      "loans.reports.summarise",
+      "loans.state.remember"
+    ]
+  },
+  "seed": 42,
+  "source": "sim"
+}

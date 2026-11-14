@@ -1,0 +1,27 @@
+{
+  "format": "recording/1",
+  "latency_ms": 0,
+  "model_id": "qwen2.5-coder:7b",
+  "model_temperature": 0.2,
+  "request_sha256": "sha256:da5624fb653b30f5755199dac12622a6539ce6fa835591c3a0a8d903a673b2cf",
+  "response": {
+    "layers": {
+      "L1": "state: amounts are stored as integer minor units",
+      "L2": "call sites: tax is added once, at the reporting boundary"
+    },
+    "patch_diff": "--- a/ticketing/core.py\n+++ b/ticketing/core.py\n@@ -1,17 +1,21 @@\n from ticketing import state\n \n \n-def unit_amount(key, base_cents):\n-    return state.remember(key, base_cents / 100.0)\n+def unit_amount(base_cents):\n+    return int(base_cents)\n \n \n def total(lines):\n-    amount = 0.0\n-    for key, quantity, base_cents in lines:\n-        amount += unit_amount(key, base_cents) * quantity\n-    return round(amount * (1 + state.TAX_RATE), 2)\n+    amount = 0\n+    for _key, quantity, base_cents in lines:\n+        amount += unit_amount(base_cents) * quantity\n+    return _with_tax(amount)\n+\n+\n+def _with_tax(cents):\n+    return (cents * (100 + state.TAX_PERCENT) + 50) // 100\n \n \n def discounted(lines, percent):\n     amount = total(lines)\n-    return round(amount * (1 - percent / 100.0), 2)\n+    return amount - (amount * int(percent) + 50) // 100\n--- a/ticketing/export.py\n+++ b/ticketing/export.py\n@@ -1,13 +1,12 @@\n-from ticketing import core, state\n+from ticketing import core\n \n \n def rows(lines):\n-    out = [\"key,amount\"]\n+    out = [\"key,amount_cents\"]\n     for key, quantity, base_cents in lines:\n-        unit = round(base_cents / 100.0 * (1 + state.TAX_RATE), 2)\n-        out.append(\"%s,%.2f\" % (key, unit * quantity))\n+        out.append(\"%s,%d\" % (key, core.unit_amount(base_cents) * quantity))\n     return \"\\n\".join(out) + \"\\n\"\n \n \n def total_cents(lines):\n-    return int(core.total(lines) * 100)\n+    return core.total(lines)\n--- a/ticketing/reports.py\n+++ b/ticketing/reports.py\n@@ -1,18 +1,8 @@\n-from ticketing import state\n-\n-\n-def _recompute(lines):\n-    subtotal = 0.0\n-    for _key, quantity, base_cents in lines:\n-        subtotal += base_cents / 100.0 * quantity\n-    return round(subtotal * (1 + state.TAX_RATE), 2)\n+from ticketing import core, state\n \n \n def summarise(lines):\n-    try:\n-        amount = _recompute(lines)\n-    except:\n-        amount = 0.0\n-    return \"GBP {:.2f} ({} items, tax {:.0f}%)\".format(\n-        amount, len(lines), state.TAX_RATE * 100\n+    cents = core.total(lines)\n+    return \"GBP {}.{:02d} ({} items, tax {}%)\".format(\n+        cents // 100, cents % 100, len(lines), state.TAX_PERCENT\n     )\n",
+    "rationale_text": "Convert the amounts to integer minor units inside the module and let the caller apply tax once. ticketing.core, ticketing.export, ticketing.reports, ticketing.state is the module that owns the state.",
+    "touched_symbols": [
+      "ticketing.core.discounted",
+      "ticketing.core.total",
+      "ticketing.core.unit_amount",
+      "ticketing.export.rows",
+      "ticketing.export.total_cents",
+      "ticketing.reports._recompute",
+      "ticketing.reports.summarise",
+      "ticketing.state.remember"
+    ]
+  },
+  "seed": 42,
+  "source": "sim"
+}

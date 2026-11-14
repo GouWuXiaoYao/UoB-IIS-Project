@@ -109,6 +109,24 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ---
 
+## 2e. LLM 客户端验收 → 证据（SPEC M3 六条，PLAN 里程碑 M6）
+
+验收命令：`python -m govern.llm --selftest` → `ok: 6 recordings, 10 replays each, 6/6 identical, no network used`；`python tools/scan_secrets.py` → `ok: 0 finding(s) in 105 files`。
+
+| # | 验收标准 | 证据 | 覆盖测试 |
+|---|---|---|---|
+| M3-1 | `replay` 逐字节相同：同一次请求跑 10 次，`content_hash()` 全等 | `Client._replay()`（`govern/llm.py:266`）只读 `recordings/<slug>/<request_sha256>.json`；`Suggestion.content_hash()`（`:168`）对内容而非时间取摘要；`_selftest()`（`:397`）对 6 任务各跑 10 次比对 | `test_replay_is_byte_identical_across_ten_calls`（`tests/test_llm.py:119`）、`test_the_hash_is_stable_for_the_same_content`（`:340`）、`test_the_hash_does_not_depend_on_the_absolute_path`（`:347`） |
+| M3-2 | 录制完整可复现：`live` 写下的录制，`replay` 能逐字节还原；缺录制时**报错而非静默降级** | `_record()`（`:349`）写 `format/source/request_sha256/model_id/temperature/seed/latency_ms/response`；`_replay()` 先校验 `format`、`request_sha256`、`model_id` 三道闸，异常分别抛 `SchemaViolation`/`RecordingMissing` | `test_live_writes_a_recording_that_replay_reproduces`（`:239`）、`test_the_recording_says_it_came_from_live`（`:247`）、`test_missing_recording_raises_with_a_code`（`:144`）、`test_a_recording_for_another_request_is_refused`（`:151`）、`test_a_malformed_recording_is_refused`（`:163`）、`test_a_recording_with_an_unparseable_patch_is_refused`（`:172`） |
+| M3-3 | 无魔法数字：`model`/`temperature`/`seed` 只在 `config/config.json` | `Client` 全部从 `config` 取值（`:221-235`）；录制里回写的也是 config 值（`:349`） | `test_no_temperature_or_seed_literals_outside_config`（`:362`，扫 `govern/*.py` 与 `tools/*.py`）、`test_the_model_id_comes_from_config`（`:287`） |
+| M3-4 | 无密钥与端点入库：密钥前缀、`api_key` 赋值、`token` 赋值、https 端点字面量，交付态零命中（与 SPEC 3.11 第 5 条同一脚本） | `tools/scan_secrets.py`：`_PATTERNS`（`:38`）四组，片段拼装以免自匹配；密钥只从 `A2_API_KEY`、端点只从 `A2_API_BASE` 读（`govern/llm.py:285-290`） | `test_no_endpoint_or_key_literal_in_the_code`（`:372`）、`test_the_repository_is_clean`（`tests/test_secrets.py:45`）、四条正例 `:19/:23/:27/:30`、反例 `:37`、`test_loopback_http_is_allowed`（`:33`） |
+| M3-5 | 非法返回：写 `integrity_event(kind="schema_violation")` 并**继续会话** | `generate()`（`:246`）捕获 `SchemaViolation` 后调 `_integrity()`（`:384`），仍照常写 `generation_request`；异常再抛给调用方 | `test_a_schema_violation_also_writes_an_integrity_event`（`:305`）、`test_the_session_continues_after_a_schema_violation`（`:316`）、`test_a_malformed_reply_raises_with_a_code`（`:230`） |
+| M3-6 | 每次调用恰一条 `generation_request`，`mode` 如实，`model_id` 为真实模型名 | `_log_request()`（`:369`）在成功/失败路径上只调用一次；`mode` 取 `self.mode`（`:277` 测试钉死）；`model_id` 由日志元数据给出，且 `_replay` 现在**拒绝**来自其它模型的录制（`:271-275`） | `test_exactly_one_generation_request_per_successful_replay`（`:258`）、`test_exactly_one_generation_request_per_failed_call`（`:268`）、`test_the_mode_field_is_truthful`（`:277`）、`test_a_recording_from_another_model_is_refused`（`:297`）、`test_the_request_hash_is_logged`（`:328`） |
+| 附 | 录制是**作者模拟**的，不是模型输出 | `tools/make_recordings.py` 从 gold patch 去掉最后一个文件段，即"修了主模块、漏了一个消费者"；每条录制 `"source": "sim"` | `test_the_shipped_recordings_match_the_factory`（`:393`）、`test_every_shipped_suggestion_omits_at_least_one_consumer`（`:405`）、`test_shipped_recordings_declare_their_source`（`:387`） |
+
+**为什么录制必须"少修一处"**：如果 replay 直接回放 gold patch，C0 与 C1 的隐藏测试都会通过，实验就没有区分度。少修一处正是 A1 §4 指出的跨模块副作用盲区，也是评估卡要显形的东西。录制里 `source: "sim"` 如实标注，报告与 README 都按"模拟建议"表述。
+
+---
+
 ## 3. 模块级证据
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
@@ -120,6 +138,10 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | `govern/card.py` | 新增（M4 = SPEC M5） | `build()` `:65`；`to_html()` `:108`；`CardItem` `:34`、`Card` `:44` | `tests/test_card.py`（16 条）；`python -m govern.card --selftest` → `ok: T-L01a card has 5 items, 5 required, no patch text` |
 | `govern/gate.py` | 新增（M4 = SPEC M6） | `Gate.toggle()` `:57`、`decide()` `:72`、`open()` `:82`、`issue_token()` `:87`、`consume_token()` `:97`；`PassThroughGate` `:105` | `tests/test_gate.py`（19 条）；`python -m govern.gate --selftest` → `ok: 6 cards, blocked until every item is confirmed, C0 passthrough, min dwell 800 ms` |
 | `govern/log.py` | 新增（M5 = SPEC M7） | `SCHEMA_VERSION` `:25`；`ENVELOPE` `:70`；`EVENT_FIELDS` `:91`；`validate()` `:260`；`Logger` `:320`；`scan_pii()` `:447`；`purge()` `:480` | `tests/test_log.py`（34 条）；`python -m govern.log --selftest` → `ok: 16 event types, seq from 1, atomic append, purge clean` |
+| `govern/llm.py` | 新增（M6 = SPEC M3） | `Context.for_task()` `:95`；`Context.sha256()` `:135`；`Suggestion.content_hash()` `:168`；`Client.generate()` `:246`；`_replay()` `:266`；`_live()` `:285`；`_record()` `:349`；`_selftest()` `:397` | `tests/test_llm.py`（38 条）；`python -m govern.llm --selftest` → `ok: 6 recordings, 10 replays each, 6/6 identical, no network used` |
+| `tools/scan_secrets.py` | 新增（M6 = SPEC 3.11 第 5 条） | `_PATTERNS` `:38`；`scan_text()` `:50`；`scan_paths(paths, root=None)` `:67`；`tracked_files()` `:99`；`main()` `:123` | `tests/test_secrets.py`（14 条）；`python tools/scan_secrets.py` → `ok: 0 finding(s) in 105 files` |
+| `tools/make_recordings.py` | 新增（M6，PLAN 未列） | `suggest()` `:70`；`recording()` `:91`；`build()` `:112`；`selftest()` `:129` | `python tools/make_recordings.py --selftest` → `ok: 6 recordings match the factory` |
+| `recordings/` | 数据（`source: "sim"`） | `recordings/qwen2.5-coder-7b/<request_sha256>.json`，6 个任务各一条 | `test_the_repository_ships_one_recording_per_task`（`tests/test_llm.py:381`）、`test_the_shipped_recordings_match_the_factory`（`:393`） |
 | `corpus/` | 数据 | `corpus/index.json`；`PAIR-01`=`T-L01a`(billing)/`T-L01b`(loans) 层 L；`PAIR-02`=`T-L02a`(ticketing)/`T-L02b`(payroll) 层 M；`PAIR-03`=`T-L03a`(inventory)/`T-L03b`(fleet) 层 H | `test_index_holds_three_pairs`（`tests/test_corpus.py:34`）、`test_every_task_directory_is_complete`（`:51`） |
 
 **三层坏味道的递进（这是"难度"的操作化定义）**
@@ -158,6 +180,13 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 .\.venv\Scripts\python.exe -m govern.log --scan     runs\<run_id>\logs\<pid>\<session>.jsonl
 .\.venv\Scripts\python.exe -m govern.log --purge --run-dir runs\<run_id> --before 2026-01-01
 
+# LLM 客户端验收（M6 = SPEC M3）：6 条录制各 replay 10 次、无网络、无密钥
+.\.venv\Scripts\python.exe -m govern.llm --selftest
+
+# 录制可重建性 + 密钥/端点扫描（交付前两条闸）
+.\.venv\Scripts\python.exe tools\make_recordings.py --selftest
+.\.venv\Scripts\python.exe tools\scan_secrets.py
+
 # 项目自检
 .\.venv\Scripts\python.exe -m govern.run --selftest
 ```
@@ -193,18 +222,26 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | `purge()` 额外无条件删除 `*.jsonl.tmp`（M5） | PLAN 第 145 行只要求"`purge` 后删除 `.jsonl.tmp`"；本实现不留任何 `.tmp` 中转文件，但若历史版本崩溃留下残片，仍须清理，否则"purge 干净"是空话 | 删除清单里会列出这些文件；测试 `test_purge_leaves_no_jsonl_or_tmp_behind`（`tests/test_log.py:356`）覆盖 |
 | 日志目录 `logs/<participant_id>/<session_id>.jsonl`（M5） | SPEC 4.6/M7 给的是这个形状，PLAN 的 `Logger(run_dir, meta)` 未规定子目录 | `Logger` 首参是 run_dir，内部拼 `logs/<pid>/`；SPEC 的路径优先 |
 | `MAX_LINE_BYTES`/`MAX_ARRAY_ITEMS` 留在代码里（M5） | 它们是 SPEC M7 验收 5 写死的 schema 上限（4 KB / 20 项），不是可调阈值：改它等于改 schema 含义，`schema_version` 也得跟着变 | 与 AGENTS §2.4 不冲突的例外——配置里放的是"实验参数"，这两个是"格式常量"；已在常量旁注释 |
+| 录制目录名用 slug（M6） | PLAN 第 128 行写 `recordings/<model_id>/...`，而 `qwen2.5-coder:7b` 的 `:` 在 Windows 上是非法字符（实测 `NotADirectoryError: [WinError 267]`） | `Client._model_slug()` 把非 `[A-Za-z0-9._-]` 换成 `-`，目录为 `recordings/qwen2.5-coder-7b/`；`model_id` 字段仍写原始值，两者可对照 |
+| `_replay()` 增加"模型不一致即拒绝"（M6） | SPEC M3 验收 6 要求 `model_id` 是"录制时的真实模型名"；若允许跨模型回放，日志里的模型名就会和实际产出脱钩 | 多一道 `SchemaViolation`；`test_a_recording_from_another_model_is_refused`（`tests/test_llm.py:297`）钉死 |
+| `scan_paths(paths, root=None)` 增加 `root`（M6） | 忽略规则若按**绝对**路径判定，仓库一旦位于 `.scratch/` 之类的目录下就会被整体跳过（测试里恰好如此，实测 0 命中） | 传 `root` 时按相对路径判定忽略目录；不传时退回旧行为，`scan_paths(paths)` 调用方式不变 |
+| 扫描器豁免 4 个文件（M6） | `AGENTS.md`、`docs/SPEC.md` 原文里就写着规则本身（密钥前缀与端点字面量），`tools/scan_secrets.py` 与 `tests/test_secrets.py` 含拼装的模式与合成样例——不豁免就变成"文档记录规则即违规" | `ALLOWED_PATHS`（`tools/scan_secrets.py:31`）只放这 4 个；README、报告、录制、`govern/` 仍全文扫描，真密钥粘贴到任何别处都会被报 |
+| 新增 `tools/make_recordings.py` 与 `recordings/`（M6） | 本机没有任何 API 凭据，若等真实调用就永远没有可复现的 replay；SPEC M3 验收 2 要求"录制完整可复现" | 录制由工厂从 gold patch 派生并标 `source: "sim"`，可逐字节重建（`--selftest` 校验）；这是**模拟**建议，不是模型输出，报告里如实说明 |
+| `Client.__init__` 增加可选 `logger`（M6） | `generation_request` / `integrity_event` 必须有地方写；PLAN 的构造签名没有日志参数 | 关键字参数默认 `None`（不写日志），`Client(config, mode, recordings, api_key_env)` 调用方式不变 |
+| 端点从 `A2_API_BASE` 读取（M6） | PLAN 只规定密钥从环境变量取，没说端点从哪来；写进 config 就违反了"无端点入库" | 与 `A2_API_KEY` 同一策略：只有环境变量，`EndpointMissing` 有单独错误码与测试 |
 
 ---
 
 ## 6. 明确没有做的（避免把 planned 说成 implemented）
 
 - 没有采集任何人类被试数据；`M2` 是 **SIM**，`M10` 是 **N/A**（SPEC 3.0）。
-- 没有真实 LLM 调用（`govern/llm.py` 属 M6，尚未实现，`corpus/` 与 `recordings/` 均无模型交互）。
+- **没有真正调用过任何外部模型 API**：`govern/llm.py` 的 `live` 路径只在测试里的回环 stub 上验证过（`tests/test_llm.py:68` 的 `_Stub`），`recordings/` 里 6 条录制全部是 `source: "sim"` 的作者模拟。报告与 README 一律按"模拟建议"表述，不得写成"模型输出"。
 - 影响分析器（SPEC M4 / PLAN M3）**已实现**，但它只做静态分析：不做语义推断、不读 diff、不调模型。
   它能识别的"契约"是"被 ≥ 2 个包内模块读取的顶层值"这一操作化定义（见 `govern/impact.py` docstring），
   因此它**不会**发现"两个模块各自实现同一算法"这类纯语义重复。
 - 评估卡与门控（SPEC M5/M6 / PLAN M4）**已实现**，但还**没有接线到一次真正的会话**：现在只能通过 `python -m govern.card` 渲染、通过 `python -m govern.gate --selftest` 复演不变量。
 - 遥测日志器（SPEC M7 / PLAN M5）**已实现**，但**还没有任何真实会话给它写事件**：`runs/` 下的日志目前只由测试与 `--selftest` 产生。
-  LLM 客户端、会话控制器、Web 界面（SPEC M6/M8/M9，PLAN 的 M6/M8/M9）尚未实现，所以"用户动作 → 系统响应"的交互链路、以及由真实会话日志重算的指标，目前**都不可演示**，不得声称可演示。
+- LLM 客户端（SPEC M3 / PLAN M6）**已实现**，但只交付 `replay` 模式：`live` 需要 `A2_API_BASE` + `A2_API_KEY`，本机没有，故从未对真实服务发起过请求。
+  会话控制器与 Web 界面（SPEC M8/M9，PLAN 的 M8/M9）尚未实现，所以"用户动作 → 系统响应"的交互链路、以及由真实会话日志重算的指标，目前**都不可演示**，不得声称可演示。
 - M7 验收 7 的**后半句**（重算 `analysis/` 时报告哪些结论依赖已删除数据）未实现：`analysis/`（SPEC M10）按 Q8 是 **N/A**，本期没有重算脚本，因此 `purge` 只交付"删除清单"这一半。
 - 六个种子仓库是**自建语料**（Q4 拍板的结果），不是真实开源仓库的历史；它们只用于让"影响分析 recall / precision"可判分。

@@ -1,0 +1,24 @@
+{
+  "format": "recording/1",
+  "latency_ms": 0,
+  "model_id": "qwen2.5-coder:7b",
+  "model_temperature": 0.2,
+  "request_sha256": "sha256:a48a93a68360f8feac8f8b754323001a1bccb8d5a0a3425a5d02d1d98962b2af",
+  "response": {
+    "layers": {
+      "L1": "state: amounts are stored as integer minor units",
+      "L2": "call sites: tax is added once, at the reporting boundary"
+    },
+    "patch_diff": "--- a/billing/core.py\n+++ b/billing/core.py\n@@ -1,17 +1,21 @@\n from billing import state\n \n \n-def unit_amount(key, base_cents):\n-    return state.remember(key, base_cents / 100.0)\n+def unit_amount(base_cents):\n+    return int(base_cents)\n \n \n def total(lines):\n-    amount = 0.0\n-    for key, quantity, base_cents in lines:\n-        amount += unit_amount(key, base_cents) * quantity\n-    return round(amount * (1 + state.TAX_RATE), 2)\n+    amount = 0\n+    for _key, quantity, base_cents in lines:\n+        amount += unit_amount(base_cents) * quantity\n+    return _with_tax(amount)\n+\n+\n+def _with_tax(cents):\n+    return (cents * (100 + state.TAX_PERCENT) + 50) // 100\n \n \n def discounted(lines, percent):\n     amount = total(lines)\n-    return round(amount * (1 - percent / 100.0), 2)\n+    return amount - (amount * percent + 50) // 100\n--- a/billing/reports.py\n+++ b/billing/reports.py\n@@ -2,7 +2,7 @@\n \n \n def summarise(lines):\n-    amount = core.total(lines)\n-    return \"GBP {:.2f} ({} items, tax {:.0f}%)\".format(\n-        amount, len(lines), state.TAX_RATE * 100\n+    cents = core.total(lines)\n+    return \"GBP {}.{:02d} ({} items, tax {}%)\".format(\n+        cents // 100, cents % 100, len(lines), state.TAX_PERCENT\n     )\n",
+    "rationale_text": "Convert the amounts to integer minor units inside the module and let the caller apply tax once. billing.core, billing.reports, billing.state is the module that owns the state.",
+    "touched_symbols": [
+      "billing.core.discounted",
+      "billing.core.total",
+      "billing.core.unit_amount",
+      "billing.reports.summarise",
+      "billing.state.remember"
+    ]
+  },
+  "seed": 42,
+  "source": "sim"
+}

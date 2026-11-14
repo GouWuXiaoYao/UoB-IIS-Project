@@ -248,7 +248,7 @@ C0 走完全相同的路径，只有 `Gate.decide` 恒 `blocked=false`——保�
 | M3 | 影响分析器（M4） | `govern/impact.py` | `python -m govern.impact --selftest` → `recall=1.00 precision>=0.80 on 6 tasks` | 2h |
 | M4 | 卡片 + 门（M5、M6） | `govern/card.py`、`govern/gate.py` | `python -m govern.gate --selftest` → 未勾满被拒、勾满解锁、**绕过接口的负向测试必须失败**。**已完成（2026-11-14）**：`ok: 6 cards, blocked until every item is confirmed, C0 passthrough, min dwell 800 ms`；负向测试见 `tests/test_gate.py:131-165` | 2h |
 | M5 | 日志器（M7） | `govern/log.py` + schema 表 | `python -m govern.log --selftest` → **16** 类事件校验通过（PLAN 原写"14 类"，以 SPEC 4.3 为准）；正文类字段被拒；`purge` 无残留。**已完成（2026-11-14）**：`ok: 16 event types, seq from 1, atomic append, purge clean`；证据见 `docs/rubric-mapping.md` §2d | 2h |
-| M6 | LLM 客户端（M3） | `govern/llm.py`、`recordings/` | `python -m govern.llm --selftest` → replay 10 次 hash 全等、无网络；`scan_secrets` 零命中 | 2h |
+| M6 | LLM 客户端（M3） | `govern/llm.py`、`recordings/`、`tools/scan_secrets.py`、`tools/make_recordings.py` | `python -m govern.llm --selftest` → replay 10 次 hash 全等、无网络；`scan_secrets` 零命中。**已完成（2026-11-14）**：`ok: 6 recordings, 10 replays each, 6/6 identical, no network used`、`ok: 0 finding(s) in 105 files`；录制为作者模拟（`source: "sim"`），证据见 `docs/rubric-mapping.md` §2e | 2h |
 | M7 | 评估器（M8） | `govern/score.py`、`config/rules.json` | `python -m govern.score --selftest` → gold 全绿、干净样本 0、六类规则各有正反例 | 2h |
 | M8 | 编排 + CLI（M2） | `govern/session.py`、`govern/run.py` | `--simulate 100` 卡方 p>0.05；杀进程后 `--resume` 的 `seq` 连续 | 2h |
 | M9 | Web UI 集成 | `govern/web.py`、`static/index.html` | 手工走完 C1 与 C0 两条路径，产出 3 张 storyboard 截图 | 2h |
@@ -263,7 +263,7 @@ C0 走完全相同的路径，只有 `Gate.decide` 恒 `blocked=false`——保�
 |---|---|---|---|
 | R1 | 6 个种子仓库工作量爆炸 | M2 超 3h | 先用 `make_repo.py` 参数化生成（坏味道组合 + 规模），人工只审"是否有真实跨模块契约" |
 | R2 | AST 影响分析 recall 达不到 1.0 | M3 达不到目标的 100% | recall 是治理正确性要求（漏报即失守）→ 若达不到，改为"标签集由分析器生成 + 人工复核"并在报告中说明，不允许悄悄降低阈值。**M3 实测 6/6 达到 `recall=1.00 precision=1.00`，未启用该降级**；代价是契约的操作化定义被迫收窄（只认"被 ≥2 个包内模块读取的顶层值"，见 `govern/impact.py` docstring），已记入 `docs/rubric-mapping.md` 第 6 节 |
-| R3 | 真实 API 限流/不可用/模型漂移 | M6 录制失败 | `replay` 是交付默认；录制一次性完成后冻结，报告中标明模型快照日期 |
+| R3 | 真实 API 限流/不可用/模型漂移 | M6 录制失败 | `replay` 是交付默认；录制一次性完成后冻结，报告中标明模型快照日期。**M6 现状**：本机无凭据，6 条录制是工厂派生的**模拟**建议（`source: "sim"`，从 gold patch 去掉一个消费者），因此不存在"真实调用"可漂移；`live` 路径仅由测试里的回环 stub 覆盖 |
 | R4 | 无 pytest → 与工作流文档约定不一致 | M0 | 明确改用 `unittest`，写进 AGENTS.md 并在 README 说明理由；两者可共存（pytest 能发现 unittest 用例） |
 | R5 | Python 3.15 与某库不兼容 | 任何 `import` 失败 | 零第三方运行时依赖，把该风险消除 |
 | R6 | UI 成为时间黑洞 | M9 超 2h | 直接改 `参考代码库/index.html`（已验证可用的 49 行骨架），不引入框架、不做视觉打磨 |
