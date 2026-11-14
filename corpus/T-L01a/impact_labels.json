@@ -1,5 +1,7 @@
 {
   "task_id": "T-L01a",
+  "pair_id": "PAIR-01",
+  "stratum": "L",
   "files_to_change": 3,
   "functions_to_change": 3,
   "hidden_tests": 3,

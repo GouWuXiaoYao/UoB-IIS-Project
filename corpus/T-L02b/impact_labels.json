@@ -1,0 +1,33 @@
+{
+  "task_id": "T-L02b",
+  "pair_id": "PAIR-02",
+  "stratum": "M",
+  "files_to_change": 4,
+  "functions_to_change": 4,
+  "hidden_tests": 4,
+  "global_vars": [
+    {
+      "symbol": "payroll.state.PAYROLL_CACHE",
+      "file": "payroll/state.py",
+      "kind": "mutable_global",
+      "note": "must stop being written during total()"
+    }
+  ],
+  "cross_module_contracts": [
+    {
+      "contract": "payroll.core.total returns integer minor units and payroll.reports.summarise formats them without re-deriving tax",
+      "producer": "payroll/core.py",
+      "consumer": "payroll/reports.py",
+      "baseline_minor_units": 4740
+    },
+    {
+      "contract": "csv export must consume the same minor-unit contract",
+      "producer": "payroll/core.py",
+      "consumer": "payroll/export.py",
+      "baseline_minor_units": 4740
+    }
+  ],
+  "untouched": [
+    "app.py"
+  ]
+}

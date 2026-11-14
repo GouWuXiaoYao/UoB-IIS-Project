@@ -1,0 +1,45 @@
+{
+  "task_id": "T-L03a",
+  "pair_id": "PAIR-03",
+  "stratum": "H",
+  "files_to_change": 5,
+  "functions_to_change": 5,
+  "hidden_tests": 6,
+  "global_vars": [
+    {
+      "symbol": "inventory.state.STOCK_CACHE",
+      "file": "inventory/state.py",
+      "kind": "mutable_global",
+      "note": "must stop being written during total()"
+    },
+    {
+      "symbol": "inventory.state.LEDGER",
+      "file": "inventory/state.py",
+      "kind": "mutable_global",
+      "note": "mutable list used as a default argument; must not grow"
+    }
+  ],
+  "cross_module_contracts": [
+    {
+      "contract": "inventory.core.total returns integer minor units and inventory.reports.summarise formats them without re-deriving tax",
+      "producer": "inventory/core.py",
+      "consumer": "inventory/reports.py",
+      "baseline_minor_units": 5903
+    },
+    {
+      "contract": "csv export must consume the same minor-unit contract",
+      "producer": "inventory/core.py",
+      "consumer": "inventory/export.py",
+      "baseline_minor_units": 5903
+    },
+    {
+      "contract": "audit trail must derive tax with the same integer rounding",
+      "producer": "inventory/core.py",
+      "consumer": "inventory/audit.py",
+      "baseline_minor_units": 5903
+    }
+  ],
+  "untouched": [
+    "app.py"
+  ]
+}

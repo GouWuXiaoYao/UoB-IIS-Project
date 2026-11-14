@@ -1,4 +1,4 @@
-"""Acceptance tests for M1: the seed corpus must be gradeable and leak-free."""
+"""Acceptance tests for the seed corpus: every task must be gradeable, matched and leak-free."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ from govern import config, corpus, tasks
 ROOT = Path(__file__).resolve().parent.parent
 CORPUS = ROOT / "corpus"
 PAIR_KEYS = ("files_to_change", "functions_to_change", "hidden_tests")
+EXPECTED_IDS = ["T-L01a", "T-L01b", "T-L02a", "T-L02b", "T-L03a", "T-L03b"]
+EXPECTED_PAIRS = {"PAIR-01": "L", "PAIR-02": "M", "PAIR-03": "H"}
 
 
 def _tree_digest(root: Path) -> str:
@@ -24,12 +26,27 @@ def _tree_digest(root: Path) -> str:
     return digest.hexdigest()
 
 
+def _labels(task_id: str) -> dict:
+    return json.loads((CORPUS / task_id / "impact_labels.json").read_text(encoding="utf-8"))
+
+
 class IndexTests(unittest.TestCase):
-    def test_index_holds_one_pair(self) -> None:
+    def test_index_holds_three_pairs(self) -> None:
         loaded = tasks.load_index(CORPUS)
-        self.assertEqual([t.task_id for t in loaded], ["T-L01a", "T-L01b"])
-        self.assertEqual({t.pair_id for t in loaded}, {"PAIR-01"})
-        self.assertEqual({t.stratum for t in loaded}, {"L"})
+        self.assertEqual([t.task_id for t in loaded], EXPECTED_IDS)
+        self.assertEqual({t.pair_id for t in loaded}, set(EXPECTED_PAIRS))
+
+    def test_each_pair_has_two_tasks_of_one_stratum(self) -> None:
+        loaded = tasks.load_index(CORPUS)
+        for pair_id, stratum in EXPECTED_PAIRS.items():
+            with self.subTest(pair=pair_id):
+                members = [t for t in loaded if t.pair_id == pair_id]
+                self.assertEqual(len(members), 2)
+                self.assertEqual({t.stratum for t in members}, {stratum})
+
+    def test_strata_cover_low_medium_high(self) -> None:
+        loaded = tasks.load_index(CORPUS)
+        self.assertEqual(sorted({t.stratum for t in loaded}), ["H", "L", "M"])
 
     def test_every_task_directory_is_complete(self) -> None:
         for task in tasks.load_index(CORPUS):
@@ -78,31 +95,39 @@ class CheckTests(unittest.TestCase):
 
 
 class LabelTests(unittest.TestCase):
-    def _labels(self, task_id: str) -> dict:
-        return json.loads((CORPUS / task_id / "impact_labels.json").read_text(encoding="utf-8"))
-
     def test_each_task_has_global_state_and_contract(self) -> None:
-        for task_id in ("T-L01a", "T-L01b"):
+        for task_id in EXPECTED_IDS:
             with self.subTest(task=task_id):
-                labels = self._labels(task_id)
+                labels = _labels(task_id)
                 self.assertGreaterEqual(len(labels["global_vars"]), 1)
                 self.assertGreaterEqual(len(labels["cross_module_contracts"]), 1)
 
-    def test_pair_is_matched_within_twenty_percent(self) -> None:
+    def test_every_pair_is_matched_within_tolerance(self) -> None:
         tolerance = config.load(ROOT / "config" / "config.json").pair_tolerance
-        a, b = self._labels("T-L01a"), self._labels("T-L01b")
-        for key in PAIR_KEYS:
-            with self.subTest(metric=key):
-                high, low = max(a[key], b[key]), min(a[key], b[key])
-                self.assertGreater(low, 0)
-                self.assertLessEqual((high - low) / high, tolerance)
+        members: dict[str, list[dict]] = {}
+        for task_id in EXPECTED_IDS:
+            labels = _labels(task_id)
+            members.setdefault(labels["pair_id"], []).append(labels)
+        self.assertEqual(len(members), 3)
+        for pair_id, pair in members.items():
+            with self.subTest(pair=pair_id):
+                self.assertEqual(len(pair), 2)
+                for key in PAIR_KEYS:
+                    high, low = max(p[key] for p in pair), min(p[key] for p in pair)
+                    self.assertGreater(low, 0, f"{pair_id}:{key} must not be zero")
+                    self.assertLessEqual((high - low) / high, tolerance)
 
     def test_declared_file_count_matches_patch(self) -> None:
-        for task_id in ("T-L01a", "T-L01b"):
+        for task_id in EXPECTED_IDS:
             with self.subTest(task=task_id):
-                labels = self._labels(task_id)
-                patch = (CORPUS / task_id / "gold.patch").read_text(encoding="utf-8")
-                self.assertEqual(len(corpus.changed_files(patch)), labels["files_to_change"])
+                labels = _labels(task_id)
+                patch_text = (CORPUS / task_id / "gold.patch").read_text(encoding="utf-8")
+                self.assertEqual(len(corpus.changed_files(patch_text)), labels["files_to_change"])
+
+    def test_higher_strata_touch_more_files(self) -> None:
+        counts = {task_id: _labels(task_id)["files_to_change"] for task_id in EXPECTED_IDS}
+        self.assertLess(counts["T-L01a"], counts["T-L02a"])
+        self.assertLess(counts["T-L02a"], counts["T-L03a"])
 
 
 class CliTests(unittest.TestCase):
@@ -112,10 +137,34 @@ class CliTests(unittest.TestCase):
             cwd=ROOT,
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=600,
         )
         self.assertEqual(proc.returncode, 0, msg=proc.stdout + proc.stderr)
-        self.assertIn("ok: 2 tasks, gold 2/2, labels 2/2", proc.stdout)
+        self.assertIn("ok: 6 tasks, gold 6/6, pairs 3/3 within 20%", proc.stdout)
+
+
+class FactoryTests(unittest.TestCase):
+    def test_factory_is_deterministic(self) -> None:
+        sys.path.insert(0, str(ROOT / "tools"))
+        try:
+            import make_repo  # noqa: PLC0415
+        finally:
+            sys.path.pop(0)
+        first = make_repo.build_corpus()
+        second = make_repo.build_corpus()
+        self.assertEqual(first, second)
+        self.assertEqual(len([n for n in first if n.endswith("gold.patch")]), 6)
+
+    def test_committed_corpus_matches_factory(self) -> None:
+        proc = subprocess.run(
+            [sys.executable, "tools/make_repo.py", "--selftest"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(proc.returncode, 0, msg=proc.stdout + proc.stderr)
+        self.assertIn("corpus files match the factory", proc.stdout)
 
 
 if __name__ == "__main__":

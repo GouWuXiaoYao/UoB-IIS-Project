@@ -1,0 +1,45 @@
+{
+  "task_id": "T-L03b",
+  "pair_id": "PAIR-03",
+  "stratum": "H",
+  "files_to_change": 5,
+  "functions_to_change": 5,
+  "hidden_tests": 6,
+  "global_vars": [
+    {
+      "symbol": "fleet.state.FLEET_CACHE",
+      "file": "fleet/state.py",
+      "kind": "mutable_global",
+      "note": "must stop being written during total()"
+    },
+    {
+      "symbol": "fleet.state.LEDGER",
+      "file": "fleet/state.py",
+      "kind": "mutable_global",
+      "note": "mutable list used as a default argument; must not grow"
+    }
+  ],
+  "cross_module_contracts": [
+    {
+      "contract": "fleet.core.total returns integer minor units and fleet.reports.summarise formats them without re-deriving tax",
+      "producer": "fleet/core.py",
+      "consumer": "fleet/reports.py",
+      "baseline_minor_units": 6140
+    },
+    {
+      "contract": "csv export must consume the same minor-unit contract",
+      "producer": "fleet/core.py",
+      "consumer": "fleet/export.py",
+      "baseline_minor_units": 6140
+    },
+    {
+      "contract": "audit trail must derive tax with the same integer rounding",
+      "producer": "fleet/core.py",
+      "consumer": "fleet/audit.py",
+      "baseline_minor_units": 6140
+    }
+  ],
+  "untouched": [
+    "app.py"
+  ]
+}

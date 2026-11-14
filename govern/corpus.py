@@ -20,7 +20,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from govern import patch, tasks
+from govern import config, patch, tasks
 
 CORPUS_ROOT = Path("corpus")
 SCRATCH_ROOT = Path(__file__).resolve().parent.parent / ".scratch"
@@ -159,11 +159,42 @@ def check_all(root: str | Path = CORPUS_ROOT) -> list[Check]:
     return [check_task(task) for task in tasks.load_index(root)]
 
 
-def summarise(checks: list[Check]) -> str:
+PAIR_METRICS = ("files_to_change", "functions_to_change", "hidden_tests")
+
+
+def _pair_summary(tolerance: float) -> tuple[int, int]:
+    """Count task pairs whose three size metrics differ by at most ``tolerance``."""
+    groups: dict[str, list[dict]] = {}
+    for task in tasks.load_index(CORPUS_ROOT):
+        path = CORPUS_ROOT / task.task_id / "impact_labels.json"
+        if not path.is_file():
+            continue
+        groups.setdefault(task.pair_id, []).append(json.loads(path.read_text(encoding="utf-8")))
+    matched = 0
+    for members in groups.values():
+        if len(members) != 2:
+            continue
+        ok = True
+        for key in PAIR_METRICS:
+            high = max(m[key] for m in members)
+            low = min(m[key] for m in members)
+            if low <= 0 or (high - low) / high > tolerance:
+                ok = False
+        matched += 1 if ok else 0
+    return matched, len(groups)
+
+
+def summarise(checks: list[Check], tolerance: float | None = None) -> str:
     total = len(checks)
     gold = sum(1 for c in checks if c.gold_green)
     labels = sum(1 for c in checks if c.labels_ok)
-    return f"ok: {total} tasks, gold {gold}/{total}, labels {labels}/{total}"
+    if tolerance is None:
+        tolerance = config.load(CORPUS_ROOT.parent / "config" / "config.json").pair_tolerance
+    matched, pairs = _pair_summary(tolerance)
+    return (
+        f"ok: {total} tasks, gold {gold}/{total}, "
+        f"pairs {matched}/{pairs} within {round(tolerance * 100)}%"
+    )
 
 
 def _selftest() -> int:

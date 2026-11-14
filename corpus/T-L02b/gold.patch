@@ -1,0 +1,89 @@
+--- a/payroll/core.py
++++ b/payroll/core.py
+@@ -1,17 +1,21 @@
+ from payroll import state
+ 
+ 
+-def unit_amount(key, base_cents):
+-    return state.remember(key, base_cents / 100.0)
++def unit_amount(base_cents):
++    return int(base_cents)
+ 
+ 
+ def total(lines):
+-    amount = 0.0
+-    for key, quantity, base_cents in lines:
+-        amount += unit_amount(key, base_cents) * quantity
+-    return round(amount * (1 + state.TAX_RATE), 2)
++    amount = 0
++    for _key, quantity, base_cents in lines:
++        amount += unit_amount(base_cents) * quantity
++    return _with_tax(amount)
++
++
++def _with_tax(cents):
++    return (cents * (100 + state.TAX_PERCENT) + 50) // 100
+ 
+ 
+ def discounted(lines, percent):
+     amount = total(lines)
+-    return round(amount * (1 - percent / 100.0), 2)
++    return amount - (amount * int(percent) + 50) // 100
+--- a/payroll/export.py
++++ b/payroll/export.py
+@@ -1,13 +1,12 @@
+-from payroll import core, state
++from payroll import core
+ 
+ 
+ def rows(lines):
+-    out = ["key,amount"]
++    out = ["key,amount_cents"]
+     for key, quantity, base_cents in lines:
+-        unit = round(base_cents / 100.0 * (1 + state.TAX_RATE), 2)
+-        out.append("%s,%.2f" % (key, unit * quantity))
++        out.append("%s,%d" % (key, core.unit_amount(base_cents) * quantity))
+     return "\n".join(out) + "\n"
+ 
+ 
+ def total_cents(lines):
+-    return int(core.total(lines) * 100)
++    return core.total(lines)
+--- a/payroll/reports.py
++++ b/payroll/reports.py
+@@ -1,18 +1,8 @@
+-from payroll import state
+-
+-
+-def _recompute(lines):
+-    subtotal = 0.0
+-    for _key, quantity, base_cents in lines:
+-        subtotal += base_cents / 100.0 * quantity
+-    return round(subtotal * (1 + state.TAX_RATE), 2)
++from payroll import core, state
+ 
+ 
+ def summarise(lines):
+-    try:
+-        amount = _recompute(lines)
+-    except:
+-        amount = 0.0
+-    return "GBP {:.2f} ({} items, tax {:.0f}%)".format(
+-        amount, len(lines), state.TAX_RATE * 100
++    cents = core.total(lines)
++    return "GBP {}.{:02d} ({} items, tax {}%)".format(
++        cents // 100, cents % 100, len(lines), state.TAX_PERCENT
+     )
+--- a/payroll/state.py
++++ b/payroll/state.py
+@@ -1,9 +1,3 @@
+ """T-L02b shared process state."""
+ 
+-TAX_RATE = 0.2
+-PAYROLL_CACHE = {}
+-
+-
+-def remember(key, amount):
+-    PAYROLL_CACHE[key] = amount
+-    return amount
++TAX_PERCENT = 20

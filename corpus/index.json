@@ -21,6 +21,50 @@
         "functions_to_change": 3,
         "hidden_tests": 3
       }
+    },
+    {
+      "task_id": "T-L02a",
+      "pair_id": "PAIR-02",
+      "stratum": "M",
+      "intent": "Support reports that box-office totals disagree with the finance export. Move the ticketing package to integer minor units (cents), stop the module-level cache from accumulating across calls, and make the report and the CSV export agree with the same money contract.",
+      "labels": {
+        "files_to_change": 4,
+        "functions_to_change": 4,
+        "hidden_tests": 4
+      }
+    },
+    {
+      "task_id": "T-L02b",
+      "pair_id": "PAIR-02",
+      "stratum": "M",
+      "intent": "Finance reports that payslip totals disagree with the ledger export. Move the payroll package to integer minor units (cents), stop the module-level cache from accumulating across calls, and make the report and the CSV export agree with the same money contract.",
+      "labels": {
+        "files_to_change": 4,
+        "functions_to_change": 4,
+        "hidden_tests": 4
+      }
+    },
+    {
+      "task_id": "T-L03a",
+      "pair_id": "PAIR-03",
+      "stratum": "H",
+      "intent": "Warehouse auditors found stock totals that drift between the report, the CSV export and the audit trail. Move the inventory package to integer minor units (cents), remove the process-wide caches and the ledger that grows across calls, stop evaluating discount expressions with eval, and make every consumer agree with one money contract.",
+      "labels": {
+        "files_to_change": 5,
+        "functions_to_change": 5,
+        "hidden_tests": 6
+      }
+    },
+    {
+      "task_id": "T-L03b",
+      "pair_id": "PAIR-03",
+      "stratum": "H",
+      "intent": "Depot auditors found mileage totals that drift between the report, the CSV export and the audit trail. Move the fleet package to integer minor units (cents), remove the process-wide caches and the ledger that grows across calls, stop evaluating discount expressions with eval, and make every consumer agree with one money contract.",
+      "labels": {
+        "files_to_change": 5,
+        "functions_to_change": 5,
+        "hidden_tests": 6
+      }
     }
   ]
 }

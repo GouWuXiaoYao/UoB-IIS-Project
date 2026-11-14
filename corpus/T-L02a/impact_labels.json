@@ -1,0 +1,33 @@
+{
+  "task_id": "T-L02a",
+  "pair_id": "PAIR-02",
+  "stratum": "M",
+  "files_to_change": 4,
+  "functions_to_change": 4,
+  "hidden_tests": 4,
+  "global_vars": [
+    {
+      "symbol": "ticketing.state.TICKET_CACHE",
+      "file": "ticketing/state.py",
+      "kind": "mutable_global",
+      "note": "must stop being written during total()"
+    }
+  ],
+  "cross_module_contracts": [
+    {
+      "contract": "ticketing.core.total returns integer minor units and ticketing.reports.summarise formats them without re-deriving tax",
+      "producer": "ticketing/core.py",
+      "consumer": "ticketing/reports.py",
+      "baseline_minor_units": 4523
+    },
+    {
+      "contract": "csv export must consume the same minor-unit contract",
+      "producer": "ticketing/core.py",
+      "consumer": "ticketing/export.py",
+      "baseline_minor_units": 4523
+    }
+  ],
+  "untouched": [
+    "app.py"
+  ]
+}
