@@ -271,7 +271,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
 |---|---|---|---|
 | 1 | 标准库测试套件 | `python -m unittest discover -s tests -q` | `Ran 446 tests in 40.283s` / `OK (skipped=2)` / exit 0 |
 | 2 | 一条命令自检 | `python -m govern.run --selftest` | `ok: 6 tasks, 6 cards` / exit 0 |
-| 3 | 密钥与端点扫描 | `python tools/scan_secrets.py` | `ok: 0 finding(s) in 189 files` / exit 0 |
+| 3 | 密钥与端点扫描 | `python tools/scan_secrets.py` | `ok: 0 finding(s) in 176 files` / exit 0（`_repro/` 已排除，否则这个数字会随"审计跑过几次"变化） |
 | 4 | 溯源台账 | `python -m govern.provenance --check` | `ok: 31 rows, 11 modules covered (original=10, reused=3, assisted=18)` / exit 0 |
 | 5 | 一条命令复现 | `powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1` | `ok: 6 of 6 steps passed` / exit 0（写入 `_repro/20261114-232213/`；`runs\`、`analysis\`、`dist\` 未被触碰） |
 
