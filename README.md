@@ -17,7 +17,7 @@ provenance checker. What is **simulated**: model output, which is served from re
 the analysis pipeline (`SPEC` M9) and the human study (Q1/Q2 — designed, never run).
 **No human data has been collected.** Every session in this repository was run by the author.
 
-Prose word count of this README: **886 words**, counted by `python tools/word_count.py` with this rule:
+Prose word count of this README: **946 words**, counted by `python tools/word_count.py` with this rule:
 blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
 (headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
 says 889, so the earlier figure was wrong rather than counted differently. `python tools/word_count.py
@@ -101,10 +101,15 @@ Two identifiers, because neither alone is enough here:
    `b2fbc378…` the 131-file tree once `experiments/` was added. For the commit you are reading, run
    `--build` and use the digest it prints.
 
+   The archive is defined by an allowlist (`PAYLOAD_DIRS` and `PAYLOAD_FILES` in
+   `tools/make_release.py`), so a new top-level directory has to be added there to ship. That is
+   deliberate: walking the whole tree once pulled a stray temporary file into the archive, and an
+   unreadable one made the build fail outright.
+
    The `govern/` system was frozen at `00fdf92` (123 files,
-   `sha256:2f2ea5d2…`). The `experiments/` harness was added after that freeze, so the archive of
-   the delivered tree is the 131-file build above — rebuilding any earlier commit reproduces the
-   earlier hash.
+   `sha256:2f2ea5d2…`). Later commits add `experiments/`, `analysis/`, the report and the
+   provenance rows, so the archive of the tree you are reading is larger — rebuild it rather than
+   trusting a number quoted here. Rebuilding an earlier commit reproduces that commit's hash.
 
 ## Development record
 

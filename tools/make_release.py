@@ -42,6 +42,12 @@ SKIP_NAMES = {
 }
 SKIP_PREFIXES = ("A2_API_KEY", "DSH-", "pytest-cache-files-")
 
+PAYLOAD_DIRS = (
+    "govern", "analysis", "experiments", "tools", "tests", "config",
+    "corpus", "recordings", "docs", "static", "storyboards",
+)
+PAYLOAD_FILES = ("README.md", "AGENTS.md", "requirements-dev.txt", "pytest.ini", "conditions.yaml")
+
 FIXED_TIME = (1980, 1, 1, 0, 0, 0)
 
 
@@ -68,9 +74,23 @@ def _skip(relative: Path) -> bool:
 
 
 def payload(root: Path = ROOT) -> list[tuple[str, bytes]]:
-    """Every file that ships, as ``(posix name, bytes)``, sorted by name."""
+    """Every file that ships, as ``(posix name, bytes)``, sorted by name.
+
+    The archive is defined by an allowlist, not by whatever happens to sit in the
+    working tree. Walking everything meant a stray temporary file in the repository
+    root could end up in the release (and, if unreadable, break the build outright).
+    """
     entries: list[tuple[str, bytes]] = []
-    for path in root.rglob("*"):
+    candidates: list[Path] = []
+    for name in PAYLOAD_DIRS:
+        directory = root / name
+        if directory.is_dir():
+            candidates.extend(directory.rglob("*"))
+    for name in PAYLOAD_FILES:
+        candidate = root / name
+        if candidate.is_file():
+            candidates.append(candidate)
+    for path in candidates:
         if not path.is_file():
             continue
         relative = path.relative_to(root)
