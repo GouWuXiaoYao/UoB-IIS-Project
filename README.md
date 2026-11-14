@@ -17,7 +17,7 @@ provenance checker. What is **simulated**: model output, which is served from re
 the analysis pipeline (`SPEC` M9) and the human study (Q1/Q2 — designed, never run).
 **No human data has been collected.** Every session in this repository was run by the author.
 
-Prose word count of this README: **1141 words**, counted by `python tools/word_count.py` with this rule:
+Prose word count of this README: **1159 words**, counted by `python tools/word_count.py` with this rule:
 blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
 (headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
 says 889, so the earlier figure was wrong rather than counted differently. `python tools/word_count.py
@@ -36,7 +36,7 @@ python -m govern.log --selftest            # ok: 16 event types, seq from 1, ato
 python -m govern.score --selftest          # ok: 6 rules with positive and negative fixtures
 python -m govern.session --selftest        # ok: 10 participants, 6 slots each, deterministic
 python -m govern.web --selftest            # ok: 6 routes wired
-python -m govern.provenance --check        # ok: 21 rows, 11 modules covered
+python -m govern.provenance --check        # ok: 31 rows, 11 modules covered
 python -m unittest discover -s tests -q    # standard-library test runner
 ```
 
@@ -132,9 +132,11 @@ Two identifiers, because neither alone is enough here:
    unreadable one made the build fail outright.
 
    The `govern/` system was frozen at `00fdf92` (123 files,
-   `sha256:2f2ea5d2…`). Later commits add `experiments/`, `analysis/`, the report and the
-   provenance rows, so the archive of the tree you are reading is larger — rebuild it rather than
-   trusting a number quoted here. Rebuilding an earlier commit reproduces that commit's hash.
+   `sha256:2f2ea5d2…`). Later commits add `experiments/`, `analysis/`, the report, a fourth
+   storyboard frame, the system diagram and the one-command reproducer, so the archive of the
+   tree you are reading is larger: at commit `HEAD` it is 161 entries, 694,860 bytes,
+   `sha256:5621d11c…`. Rebuild rather than trusting a number quoted here, and note that
+   rebuilding an earlier commit reproduces that commit's hash.
 
 ## Development record
 
@@ -175,10 +177,11 @@ by running the commands above, not by inspection alone.
 | `static/` | `index.html`, the only UI file |
 | `experiments/` | the harness around the instrument: `spec.py` (condition file), `runner.py` (bounded parallelism, resume, failure isolation), `metrics.py` (recompute from logs), `run.py` (CLI), `conditions.yaml` |
 | `analysis/` | the statistics on top of the logs: `load.py`, `checks.py`, `stats.py`, `report.py`, plus hand-written `xlsx.py` and `png.py` (no third-party packages) |
-| `storyboards/` | three captured interaction frames and a frame-by-frame script |
-| `tests/` | 384 test cases across 21 modules |
+| `storyboards/` | four captured interaction frames (one of them a refusal) and a frame-by-frame script |
+| `tests/` | 446 test cases across 24 files |
 | `config/` | every threshold, seed, rule and model id — no magic numbers in code |
-| `docs/` | `SPEC.md`, `PLAN.md`, `PROVENANCE.md`, `rubric-mapping.md` |
+| `docs/` | `SPEC.md`, `PLAN.md`, `PROVENANCE.md`, `rubric-mapping.md`, `course-concept-evidence.md`, `compliance-check.md`, the report |
+| `System diagram/` | the architecture figure generated from the code, plus a per-edge evidence table |
 
 Course material (`参考代码库/`, the assignment briefs) is input rather than delivered work; it is
 acknowledged as reused material in `docs/PROVENANCE.md` (rows P-002, P-010, P-018).

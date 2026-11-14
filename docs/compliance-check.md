@@ -235,7 +235,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
 | 5 | 测试期依赖未锁定 | 新增 `requirements-dev.txt`，`pytest==9.2.0` 精确固定，并附本机 pip 不可用时的绕行说明 | 同上 `DevRequirementsTests` |
 | 6 | `govern/config.py` 的 `DEFAULT_PATH` 是**相对路径**，配置随当前目录走：在干净树里跑却读到工作区的 `config/config.json`，于是"破坏配置必定失败"的验证一开始根本没生效 | 改为 `Path(__file__).resolve().parent.parent / "config" / "config.json"`；`tools/reproduce.ps1` 每步 `Push-Location $Root` | 破坏树内配置后 `FAILED at step 1`；`python -m unittest discover` 仍 `OK` |
 | 7 | `govern.provenance --check` 要求 `reused` 来源在磁盘上存在，而 `参考代码库/` 被 `.gitignore` 排除 ⇒ **干净检出上这条自检必红**（4 条测试连带红） | 新增 `external:` 前缀：显式标注"工作区外来源"，且该前缀行**必须**填 `decision`，否则报错 | `tests/test_provenance.py` 新增 3 条；干净树 `ok: 29 rows` |
-| 8 | `tests/test_provenance.py` 的夹具指向 `参考代码库`（干净检出里不存在）⇒ 测试只能在本人机器上过 | 夹具改用 `docs/` 与 `docs/does_not_exist.py` | 干净树 442 条测试全绿 |
+| 8 | `tests/test_provenance.py` 的夹具指向 `参考代码库`（干净检出里不存在）⇒ 测试只能在本人机器上过 | 夹具改用 `docs/` 与 `docs/does_not_exist.py` | 干净树 446 条测试全绿 |
 
 ---
 
@@ -262,3 +262,28 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
 3. **`live` 模式没有真调过外部模型 API**。只在 `tests/test_llm.py` 的回环 `_Stub` 服务器上验证过。
 4. **没有测并发压力**。`max_parallel: 2` 只在小规模下跑过（12 会话）。
 5. **评分细则的档位→分值映射未知**。评分说明只给四档描述语与总分，没有说明档位如何映射到分数，所以本文件只判断"落在哪一档"，不预测分数。
+
+## 9. 最终交付审计（2026-11-14 晚）
+
+交付前的最后一次运行，命令与输出逐字抄录；任何一条失败都不算通过。
+
+| # | 项目规定的检查 | 命令 | 结果 |
+|---|---|---|---|
+| 1 | 标准库测试套件 | `python -m unittest discover -s tests -q` | `Ran 446 tests in 40.283s` / `OK (skipped=2)` / exit 0 |
+| 2 | 一条命令自检 | `python -m govern.run --selftest` | `ok: 6 tasks, 6 cards` / exit 0 |
+| 3 | 密钥与端点扫描 | `python tools/scan_secrets.py` | `ok: 0 finding(s) in 176 files` / exit 0 |
+| 4 | 溯源台账 | `python -m govern.provenance --check` | `ok: 31 rows, 11 modules covered (original=10, reused=3, assisted=18)` / exit 0 |
+| 5 | 一条命令复现 | `powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1` | `ok: 6 of 6 steps passed` / exit 0（写入 `_repro/20261114-230839/`；`runs\`、`analysis\`、`dist\` 未被触碰） |
+
+复现那一步产出的表（与仓库自带的 `runs/E-SIM-01` 不同，原因见 §5.2）：
+
+| condition | sessions | escape rate | mean debt Δ | OTI | mechanical |
+|---|---|---|---|---|---|
+| C0 | 6 | 1.00 | -3.67 | 0.00 | 0.00 |
+| C1 | 6 | 1.00 | -3.67 | 0.00 | 1.00 |
+
+其中 `Task time` 的配对检验这一次给出 `diff = -16.33`、`p = 0.036`，并且 `multiplicity: 1 tests, 1 survive Holm at alpha=0.05`；仓库自带那一轮是 `p = 0.058`（0 个存活）。**同一份代码、同一份配置，只是墙钟时长的抽样不同**，所以这一项既不稳定也不可引用——报告 §4 已按这个事实改写（三次运行分别 0.058 / 0.036 / 0.035）。
+
+交付快照：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（161 条目、694,860 字节、`sha256:5621d11ceda04f89e000f584f80c722a82cf2ce4288221c1d2a9af121d33af1c`），`--verify` 通过，两次构建同一 hash。
+
+**仍未验证**：§8 的五条全部仍然成立（干净机器、真人使用 UI、`live` 真调 API、并发压力、档位→分值映射）；再加一条，`pip install --require-hashes` 在本机跑不了（§7 的 P3 行已写明替代证据）。**本节不声称**任何真人研究或真实模型调用已经完成。

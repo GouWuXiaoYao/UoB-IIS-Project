@@ -197,7 +197,7 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ## 2i. 开发溯源台账验收 → 证据（SPEC M11 四条，PLAN 里程碑 M10）
 
-验收命令：`python -m govern.provenance --check` → `ok: 21 rows, 11 modules covered (original=8, reused=3, assisted=10)`；`python -m govern.provenance --selftest` → `ok: 11 modules, 3 origins, assisted rows must carry decision + check`。
+验收命令：`python -m govern.provenance --check` → `ok: 21 rows, 11 modules covered (original=8, reused=3, assisted=10)`（M10 当时的行数；台账随后继续增长，**最终为 31 行**，见 §2j 与 `docs/PROVENANCE.md`）；`python -m govern.provenance --selftest` → `ok: 11 modules, 3 origins, assisted rows must carry decision + check`。
 
 台账本体是 `docs/PROVENANCE.md`（20 行，M1–M11 全覆盖）。**它是数据，不是叙述**：`govern/provenance.py:78` 的 `parse()` 只认表格行，行内格数不符直接报错（`LedgerError`），`check()`（`:118`）逐条判定。
 
@@ -225,16 +225,20 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 六条完成定义在 `docs/PLAN.md:13-20`。它们不是"设计意图"，而是六条能当场跑的命令；`tests/test_end_to_end.py` 把每一条都写成了测试，所以回归时不会再悄悄退化。
 
-| # | 完成定义（PLAN §1） | 实测输出（2026-11-14） | 覆盖测试 |
+| # | 完成定义（PLAN §1） | 实测输出（2026-11-14 最终审计） | 覆盖测试 |
 |---|---|---|---|
-| 1 | `python -m unittest discover -s tests -q` 全绿 | `Ran 328 tests … OK`（exit 0，裸 Python，无 pytest） | `test_1_the_test_command_runs_the_suite`（`tests/test_end_to_end.py:46`，用 `-p test_smoke.py` 证明发现命令可用，避免套件自递归） |
+| 1 | `python -m unittest discover -s tests -q` 全绿 | `Ran 446 tests … OK (skipped=2)`（exit 0，裸 Python；跳过的两条是只能由 pytest 提供的那两项检查） | `test_1_the_test_command_runs_the_suite`（`tests/test_end_to_end.py:46`，用 `-p test_smoke.py` 证明发现命令可用，避免套件自递归） |
 | 2 | `python -m govern.run --dry-run` → `ok: 6 tasks, 6 cards` | `ok: 6 tasks, 6 cards` / `dry run: no logs written, no network used` | `test_2_one_command_self_test`（`:52`）、`test_a_frozen_tree_writes_no_session_data_to_the_repository`（`:124`，断言 dry run 连 `runs/` 都不新建） |
 | 3 | clone → `python -m govern.run --batch --schedule config/schedule.json` 出结果表 | `ok: batch P01 ran 6 of 6 slots in runs\R-DEMO`，六个 slot 各一行 | `test_3_one_command_reproduces_a_batch_without_network_or_key`（`:56`，断言 6 个 jsonl、首尾为 `session_start`/`session_end`、每条都过 `log.validate`） |
 | 4 | 零魔法数字：阈值只在 `config/config.json` | `tests/test_config_discipline.py` 用 `dataclasses.replace` 改五个参数，行为随之改变 | `test_the_card_statement_limit_comes_from_config`（`:43`）、`test_the_hidden_suite_timeout_comes_from_config`（`:52`）、`test_the_pair_tolerance_comes_from_config`（`:57`）、`test_the_simulation_alpha_comes_from_config`（`:66`）、`test_the_metric_thresholds_are_read_from_config`（`:75`）、`test_no_parameter_is_written_into_the_code`（`:93`） |
-| 5 | `python tools/scan_secrets.py` 零命中 | `ok: 0 finding(s) in 220 files` | `test_5_no_secret_or_endpoint_is_committed`（`:89`） |
-| 6 | `python -m govern.provenance --check` | `ok: 21 rows, 11 modules covered (original=8, reused=3, assisted=10)` | `test_6_the_provenance_ledger_checks_out`（`:94`） |
+| 5 | `python tools/scan_secrets.py` 零命中 | `ok: 0 finding(s) in 176 files` | `test_5_no_secret_or_endpoint_is_committed`（`:89`） |
+| 6 | `python -m govern.provenance --check` | `ok: 31 rows, 11 modules covered (original=10, reused=3, assisted=18)` | `test_6_the_provenance_ledger_checks_out`（`:94`） |
 
-**冻结产物**：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（123 个条目，410,797 字节），`dist/SHA256SUMS` 记 `2f2ea5d269f260d03bd8b942b3cac8ec41383b6266e8824e94b5944b772590c4`。`--verify` 复核通过，且**同一棵树重建两次字节相同**（实测第二次构建 hash 与第一次完全一致）——否则"快照"标识的是构建机器，不是这份工作。归档排除规则由 `tools/make_release.py:34` 的 `SKIP_DIRS`/`SKIP_SUFFIXES`/`SKIP_NAMES`/`SKIP_PREFIXES` 定义，实测 123 个条目中不含 `runs/`、`_tools/`、`.venv/`、`参考代码库/`、`.pyc`、`.docx`、`DSH-`、`A2_API_KEY*`。
+**冻结产物（2026-11-14，最终评审快照）**：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（161 个条目，694,860 字节），`dist/SHA256SUMS` 记 `5621d11ceda04f89e000f584f80c722a82cf2ce4288221c1d2a9af121d33af1c`。`--verify` 复核通过，且**同一棵树重建两次字节相同**（实测两次 `--build` 输出同一 hash）——否则"快照"标识的是构建机器，不是这份工作。`python tools/make_release.py --selftest` → `ok: 161 files, 16 directory rules, 9 file rules, tree digest b8461aae3df0`。
+
+**关于更早的那个快照**：M11 当时（commit `00fdf92`）的归档是 123 个条目、410,797 字节、`sha256:2f2ea5d269f260d03bd8b942b3cac8ec41383b6266e8824e94b5944b772590c4`。此后加入 `experiments/`、`analysis/`、报告、`storyboards/` 第 4 帧、`System diagram/`、`tools/reproduce.ps1` 与 `requirements-dev.txt`，所以**交付时的树对应的是上面 161 个条目那一条**；旧 hash 保留在这里是因为它能复核——`git checkout 00fdf92` 后重建应得到同一个 `2f2ea5d2…`。
+
+**归档排除规则**由 `tools/make_release.py` 的 `PAYLOAD_DIRS`/`PAYLOAD_FILES` 白名单定义（不是黑名单遍历），实测 161 个条目中不含 `runs/`、`_repro/`、`dist/`、`_tools/`、`.venv/`、`参考代码库/`、`modules/`、`.pyc`、`.docx`、`DSH-`、`A2_API_KEY*`。
 
 **如实记录（M11 的边界与代价）**
 
@@ -452,7 +456,7 @@ python tools\word_count.py --check                           # README 自称的 
 > 交付代码在 `govern/` 与 `tools/` 内，只用标准库。隐藏测试套件自 M7 起由
 > `govern/hidden.py` 用标准库在子解释器里跑（不再需要 pytest），所以
 > `python -m govern.corpus --check` 与 `python -m govern.score --selftest`
-> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（384 条）。
+> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（最终 446 条）。
 
 ---
 

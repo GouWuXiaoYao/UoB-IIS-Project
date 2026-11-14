@@ -1,0 +1,53 @@
+{
+    "ok":  true,
+    "started_at":  "2026-11-14T23:08:39.4790134Z",
+    "ended_at":  "2026-11-14T23:09:23.5243163Z",
+    "out_dir":  "F:\\UoB_Course_File\\IIS\\A2 Project\\_repro\\20261114-230839",
+    "python":  "Python 3.15.0",
+    "host_os":  "Microsoft Windows NT 10.0.26200.0",
+    "run_id":  "E-REPRO",
+    "steps":  [
+                  {
+                      "step":  "1. self-check: standard-library test suite",
+                      "command":  "python -m unittest discover -s tests -q",
+                      "exit_code":  0,
+                      "seconds":  40.8,
+                      "log":  "logs\\01-unittest.log"
+                  },
+                  {
+                      "step":  "2. self-check: six tasks, six cards",
+                      "command":  "python -m govern.run --selftest",
+                      "exit_code":  0,
+                      "seconds":  0.1,
+                      "log":  "logs\\02-selftest.log"
+                  },
+                  {
+                      "step":  "3. self-check: no secrets or endpoints in the tree",
+                      "command":  "python tools\\scan_secrets.py",
+                      "exit_code":  0,
+                      "seconds":  1.1,
+                      "log":  "logs\\03-scan-secrets.log"
+                  },
+                  {
+                      "step":  "4. self-check: provenance ledger covers every module",
+                      "command":  "python -m govern.provenance --check",
+                      "exit_code":  0,
+                      "seconds":  0.1,
+                      "log":  "logs\\04-provenance.log"
+                  },
+                  {
+                      "step":  "5. reproduce: run both conditions over the same task set",
+                      "command":  "python -m experiments.run --config conditions.yaml --runs-root F:\\UoB_Course_File\\IIS\\A2 Project\\_repro\\20261114-230839\\runs --run-id E-REPRO",
+                      "exit_code":  0,
+                      "seconds":  1.6,
+                      "log":  "logs\\05-experiments.log"
+                  },
+                  {
+                      "step":  "6. reproduce: rebuild the result table and figures from those logs",
+                      "command":  "python -m analysis.run --runs F:\\UoB_Course_File\\IIS\\A2 Project\\_repro\\20261114-230839\\runs --run-id E-REPRO --out F:\\UoB_Course_File\\IIS\\A2 Project\\_repro\\20261114-230839\\analysis",
+                      "exit_code":  0,
+                      "seconds":  0.2,
+                      "log":  "logs\\06-analysis.log"
+                  }
+              ]
+}
