@@ -83,10 +83,15 @@ Two identifiers, because neither alone is enough here:
    python tools\make_release.py --verify   # re-hash the archive and compare
    ```
 
-   The frozen snapshot is `a2-1.0.0.zip`, 123 files,
-   `sha256:2f2ea5d269f260d03bd8b942b3cac8ec41383b6266e8824e94b5944b772590c4`. The archive is
+   The frozen snapshot is `a2-1.0.0.zip`, 131 files,
+   `sha256:b2fbc3783fa57ab3a58c8d94f9ba49ff1aa0e5478f55c64a0f7a47f11ea31b50`. The archive is
    reproducible (a second build of the same tree hashes identically), so it identifies the work
    rather than the machine that packed it. `dist/` is not committed; rebuild it instead.
+
+   The `govern/` system was frozen at `00fdf92` (123 files,
+   `sha256:2f2ea5d2…`). The `experiments/` harness was added after that freeze, so the archive of
+   the delivered tree is the 131-file build above — rebuilding any earlier commit reproduces the
+   earlier hash.
 
 ## Development record
 
