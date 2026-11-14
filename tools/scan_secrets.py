@@ -28,6 +28,10 @@ SKIP_DIRS = {
     # them would only report the same files twice.
     "runs",
     "dist",
+    # The reproducer writes one timestamped directory per run; its contents are
+    # copies of what the session logs already hold, and leaving them in the count
+    # made "N files" depend on how often the audit had been run.
+    "_repro",
     # Course lecture material supplied by the university: third-party PDFs and the
     # text dumps extracted from them. They are not our files, are never committed,
     # and are full of lecture links -- scanning them would drown the real findings.
