@@ -17,12 +17,11 @@ provenance checker. What is **simulated**: model output, which is served from re
 the analysis pipeline (`SPEC` M9) and the human study (Q1/Q2 — designed, never run).
 **No human data has been collected.** Every session in this repository was run by the author.
 
-Prose word count of this README: **838 words**, counted by `python tools/word_count.py` with this rule:
+Prose word count of this README: **886 words**, counted by `python tools/word_count.py` with this rule:
 blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
 (headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
-says 838, so the earlier figure was wrong rather than counted differently. `python tools/word_count.py
---check` fails whenever the stated number and the text disagree. There is no README word limit; the
-number is here so the check can be run by anyone.
+says 889, so the earlier figure was wrong rather than counted differently. `python tools/word_count.py
+--check` fails whenever the stated number and the text disagree, and the check is itself a test.
 
 ## How to run
 
@@ -95,10 +94,12 @@ Two identifiers, because neither alone is enough here:
    python tools\make_release.py --verify   # re-hash the archive and compare
    ```
 
-   The frozen snapshot is `a2-1.0.0.zip`, 131 files,
-   `sha256:b2fbc3783fa57ab3a58c8d94f9ba49ff1aa0e5478f55c64a0f7a47f11ea31b50`. The archive is
-   reproducible (a second build of the same tree hashes identically), so it identifies the work
-   rather than the machine that packed it. `dist/` is not committed; rebuild it instead.
+   The archive is reproducible: a second build of the same tree hashes identically, so the digest
+   identifies the work rather than the machine that packed it. `dist/` is not committed; rebuild it.
+   This file therefore does not quote a digest for "now" — it would go stale the moment this line
+   changes the tree. Quoted digests are historical: `2f2ea5d2…` is the 123-file tree frozen at M11,
+   `b2fbc378…` the 131-file tree once `experiments/` was added. For the commit you are reading, run
+   `--build` and use the digest it prints.
 
    The `govern/` system was frozen at `00fdf92` (123 files,
    `sha256:2f2ea5d2…`). The `experiments/` harness was added after that freeze, so the archive of

@@ -516,7 +516,7 @@ python tools\word_count.py --check                           # README 自称的 
 | 新增顶层包 `analysis/`（分析层） | SPEC M10 原本按 Q8 标 **N/A**（"分析管线"不在本期交付集），`govern/` 只负责产出日志。用户后续要求"基于 runs/ 的日志生成分析脚本"，于是补上这一层；让它独立于 `govern/` 是为了守住 AGENTS §2.6"日志是唯一数据源"——分析不得反过来影响被测系统 | 只读 `runs/<run_id>/logs/**/*.jsonl`，不 import `govern` 的任何模块（除了比对常量），不改 `govern/` 一个字节 |
 | xlsx 与 PNG 由本仓库自己写（分析层） | AGENTS §1 要求零第三方运行时依赖，本机 `pip` 不可用（`Errno 13`），`pandas`/`scipy`/`openpyxl`/`matplotlib` 全都没有；不自己写就没有 `results.xlsx` 与图 | `analysis/xlsx.py` 与 `analysis/png.py` 各约 200 行，只用 `zipfile`/`zlib`/`struct`；输出确定性（固定 `ZipInfo.date_time`），靠往返测试与已知答案测试锁定 |
 | `python -m analysis.run` 在有多个 run 时必须显式 `--run-id`（分析层） | `runs/` 下还躺着 `R-DEMO`（6 会话）与 `R-ADHOC`（1 会话），默认"全部合并"会把 12 个 cell 算成 19 个并重复计数同一任务 | 缺 `--run-id` 时打印候选并以非零退出；`test_two_runs_need_an_explicit_choice` 钉死 |
-| `tools/word_count.py` + README 字数自纠（分析层同期） | README 一直写着 "210 words"，实为手算错值（实测 838）；评分说明虽无 README 字数上限，但一个能被轻易证伪的数字会连带削弱其余陈述的可信度 | 新增工具按**明文规则**计数，`--check` 与 `tests/test_end_to_end.py` 的 `test_the_readme_states_its_own_prose_word_count_correctly` 一起防止再漂移；README 里保留"旧值错了"的说明而不是悄悄改掉 |
+| `tools/word_count.py` + README 字数自纠（分析层同期） | README 一直写着 "210 words"，实为手算错值（实测近四倍）；评分说明虽无 README 字数上限，但一个能被轻易证伪的数字会连带削弱其余陈述的可信度 | 新增工具按**明文规则**计数，`--check` 与 `tests/test_end_to_end.py` 的 `test_the_readme_states_its_own_prose_word_count_correctly` 一起防止再漂移；README 里保留"旧值错了"的说明而不是悄悄改掉；文档正文不抄写具体数字，只指向该工具的输出 |
 
 ---
 
