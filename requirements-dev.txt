@@ -1,0 +1,24 @@
+# Test-time dependencies only.
+#
+# The shipping code has NO third-party runtime dependencies: it imports the standard
+# library and nothing else. `tests/test_dependencies.py` parses every import in
+# govern/, analysis/, experiments/ and tools/ and fails if that stops being true, so a
+# runtime requirements file would be misleading and does not exist.
+#
+# This file pins the tool used to run the suite, exactly, so that "385 tests pass"
+# means the same thing on another machine.
+#
+#   pytest==9.2.0    the only entry; pinned, not a range
+#
+# Installing it here needed a workaround, recorded because a reviewer may hit the same
+# wall: `pip install` fails on this machine with
+#   [Errno 13] Permission denied: '...whl.metadata'
+# even with TMP/TEMP pointed at the workspace, and `python -m venv` cannot bootstrap pip
+# (`ensurepip` fails the same way). The suite therefore ran from `.venv` created with
+# --without-pip and the wheel unpacked into `.venv/Lib/site-packages` by hand. Nothing
+# about the shipped code depends on that workaround; a normal machine just runs
+#   python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt
+#
+# The suite also runs without pytest at all:
+#   python -m unittest discover -s tests -q
+pytest==9.2.0

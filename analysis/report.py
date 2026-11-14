@@ -81,6 +81,9 @@ class Analysis:
     manifests: list[dict[str, Any]]
     summaries: dict[str, dict[str, stats.Summary]] = field(default_factory=dict)
     tests: dict[str, stats.PairedResult] = field(default_factory=dict)
+    #: how many complete (baseline, treatment) pairs each metric has; a design that
+    #: only ever ran one condition per task has zero here and cannot be tested pairwise.
+    paired_counts: dict[str, int] = field(default_factory=dict)
     missing: checks.MissingReport | None = None
     outlier_reports: dict[str, checks.OutlierReport] = field(default_factory=dict)
     multiplicity: checks.MultiplicityReport | None = None
@@ -112,6 +115,7 @@ def analyse(sessions: list[load.Session], manifests: list[dict[str, Any]]) -> An
         labels, left, right, participants, _tasks = load.paired_series(
             sessions, metric, BASELINE, TREATMENT
         )
+        analysis.paired_counts[metric] = len(labels)
         if len(labels) >= 2:
             analysis.tests[metric] = stats.compare_paired(
                 left, right, groups=participants

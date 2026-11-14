@@ -1,4 +1,4 @@
-﻿"""Capture the three storyboard moments from the real UI (PLAN milestone M9).
+"""Capture the three storyboard moments from the real UI (PLAN milestone M9).
 
 The M9 acceptance criterion is "walk C1 and C0 by hand and produce three
 storyboard frames".  Nobody is sitting at this keyboard, so this script walks

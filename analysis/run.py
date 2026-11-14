@@ -60,6 +60,10 @@ def _build(args: argparse.Namespace) -> tuple[report.Analysis, dict[str, Path]]:
     if args.baseline != report.BASELINE or args.treatment != report.TREATMENT:
         report.BASELINE, report.TREATMENT = args.baseline, args.treatment
     analysis = report.analyse(sessions, [manifest])
+    if not any(analysis.paired_counts.values()):
+        # Nothing to pair, so there is nothing to test and nothing worth writing:
+        # an empty workbook would look like a result table.
+        return analysis, {}
     outputs = report.build_outputs(analysis, Path(args.out))
     return analysis, outputs
 
@@ -80,13 +84,13 @@ def _table(analysis: report.Analysis) -> list[str]:
         flag = "zero" if result.zero_variance else ("struct" if metric in report.STRUCTURAL else "")
         lines.append(
             f"{label[:33]:<34}{result.n:>4}{left:>10}{right:>10}"
-            f"{result.mean_difference:>9.2f}{p_text:>12}{flag:>6}"
+            f"{result.mean_difference:>9.2f}{p_text:>12}{('  ' + flag) if flag else '':<8}"
         )
     missing = analysis.missing
     if missing is not None:
         lines.append("")
         lines.append(
-            f"missing: expected {missing.expected_cells or 'unknown'}, found "
+            f"missing: expected {missing.expected_cells or 'unknown (no manifest in this run)'}, found "
             f"{missing.observed_sessions} sessions, {missing.ended_sessions} ended, "
             f"{missing.with_outcome} with an outcome"
         )
@@ -170,6 +174,17 @@ def main(argv: list[str] | None = None) -> int:
     if not analysis.sessions:
         print(f"fail: no session logs under {args.runs}", file=sys.stderr)
         return 2
+    if not any(analysis.paired_counts.values()):
+        unpaired = len(analysis.missing.unpaired) if analysis.missing else 0
+        print(
+            f"fail: {len(analysis.sessions)} session(s) found, but no task ran in both "
+            f"conditions ({unpaired} unpaired), so a paired test is undefined. "
+            "This is what `--batch` produces: one participant gets one condition per pair. "
+            "Use the harness instead: `python -m experiments.run --config conditions.yaml` "
+            "then analyse `--run-id E-SIM-01`.",
+            file=sys.stderr,
+        )
+        return 1
 
     if args.json:
         payload = {

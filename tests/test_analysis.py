@@ -392,6 +392,18 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertTrue((path / "out" / "results.xlsx").is_file())
 
+    def test_a_run_with_no_complete_pair_is_refused(self):
+        # `--batch` gives one participant one condition per pair, so every task is
+        # unpaired and a paired test is undefined. Printing an empty table and
+        # exiting 0 would look like a result.
+        from analysis import run as cli
+
+        with scratch_dir("cli-unpaired") as path:
+            _session_files(path / "R-ONE-SIDED", {("C0", "T-1"): 0.0, ("C0", "T-2"): -2.0})
+            code = _quiet(cli.main, ["--runs", str(path / "R-ONE-SIDED"), "--out", str(path / "out")])
+            self.assertEqual(code, 1)
+            self.assertFalse((path / "out" / "results.xlsx").exists(), "an empty workbook was written")
+
 
 if __name__ == "__main__":
     unittest.main()
