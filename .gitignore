@@ -33,7 +33,9 @@ recordings/*.tmp
 
 # Course material that is not our deliverable
 参考代码库/
-*.docx
+/A1 Literature Review 3138100 V1.docx
+/Assignment 2 Course scoring instructions.docx
+modules/
 DSH-*.md
 
 # OS / editor
@@ -44,3 +46,6 @@ Thumbs.db
 
 # Course lecture material (copyrighted, not redistributed)
 modules/
+
+# Course summary provided for reference (not redistributed)
+/IIS_W1-*.docx
