@@ -249,7 +249,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
 | ~~P1~~ **已完成** | 补第 4 张 storyboard：拒绝建议 / 中途放弃 | 评分说明要"feedback **or control**"；控制面目前没图 | 已做：`storyboards/4-c1-reject.png` + `4-c1-reject.promises.txt`（`suggestion_action(action=reject)`，工作树逐字节不变） |
 | ~~P2~~ **已完成** | `device` 改枚举；报告写"不保存伪名映射" | 4.3 的两条硬化；转真人研究前必须做 | 已做：`config.device_kinds` + `log.validate()` 拒绝列表外取值；SPEC 4.6 明写"从未建立伪名与真实身份的映射表" |
 | ~~P2~~ **已完成** | `tools/reproduce.ps1`：把 5.1 的三条命令 + 四项自检合成一条 | "一条命令复现"目前是三条 | 已做：`powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1` → `ok: 6 of 6 steps passed`；失败在第 N 步即停并打印步骤名与退出码；拒绝已存在的 `-OutDir`、拒绝写入 `runs/` 或 `analysis/` |
-| **P3** | dev 依赖加 hash（`--require-hashes`）或 vendor 轮子 | 目前只固定 pytest 主版本，传递依赖未固定 | `pip install --require-hashes -r requirements-dev.txt` |
+| ~~P3~~ **已完成** | dev 依赖加 hash（`--require-hashes`）或 vendor 轮子 | 目前只固定 pytest 主版本，传递依赖未固定 | 已做：`requirements-dev.txt` 现在钉住 9 个包（pytest + 8 个传递依赖，按环境标记区分）并列出每个发布**全部 81 个文件**的 sha256（wheel 与 sdist 都给，因为 pip 按平台选文件）。逐个下载比对索引摘要：81/81 一致、无 yanked。**本机无法执行 `pip install --require-hashes`**（沙箱里 pip 的临时解包目录不可写，`PermissionError`），故改由三条替代证据验证：① 81 个文件的 sha256 与索引摘要逐个相等；② `.venv` 中 512 个已安装文件与这些 wheel 逐字节相同（即跑出 442 条测试的环境就是被钉住的那批包）；③ `pip install --dry-run --no-index --require-hashes -r requirements-dev.txt` 通过解析与钉住检查（只因 `--no-index` 无包可装而失败）。在能写临时目录的机器上，`pip download --require-hashes -r requirements-dev.txt -d tmp` 即为等同验证 |
 
 ---
 

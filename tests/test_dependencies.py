@@ -101,27 +101,101 @@ class TestImportTests(unittest.TestCase):
         )
 
 
+def _logical_requirements(text: str) -> list[tuple[str, str, list[str]]]:
+    """Parse a hash-pinned requirements file into ``(name, spec, hashes)`` triples.
+
+    Understands the two things that make the file more than one pin per line: comments,
+    and the trailing backslash that continues a requirement onto its ``--hash`` lines.
+    """
+    joined: list[str] = []
+    buffer = ""
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].rstrip()
+        if not line:
+            continue
+        if line.endswith("\\"):
+            buffer += line[: -1].strip() + " "
+            continue
+        joined.append((buffer + line).strip())
+        buffer = ""
+    if buffer.strip():
+        joined.append(buffer.strip())
+
+    parsed: list[tuple[str, str, list[str]]] = []
+    for entry in joined:
+        if entry.startswith("-"):
+            continue  # options such as --require-hashes
+        spec = entry.split("--hash=", 1)[0].strip()
+        hashes = ["sha256:" + digest for digest in re.findall(r"--hash=sha256:([0-9a-fA-F]{64})", entry)]
+        name = spec.split("==", 1)[0].split(";", 1)[0].strip()
+        parsed.append((name, spec, hashes))
+    return parsed
+
+
 class DevRequirementsTests(unittest.TestCase):
     def test_dev_tools_are_pinned_exactly(self) -> None:
         self.assertTrue(DEV_REQUIREMENTS.is_file(), "requirements-dev.txt is missing")
-        pins = [
-            line.split("#", 1)[0].strip()
-            for line in DEV_REQUIREMENTS.read_text(encoding="utf-8").splitlines()
-            if line.split("#", 1)[0].strip()
-        ]
-        self.assertTrue(pins, "requirements-dev.txt lists nothing")
-        for pin in pins:
-            self.assertRegex(pin, r"^[A-Za-z0-9._-]+==[0-9]", f"not an exact pin: {pin}")
+        text = DEV_REQUIREMENTS.read_text(encoding="utf-8")
+        self.assertIn("--require-hashes", text, "the file must ask for hash checking itself")
+        pairs = _logical_requirements(text)
+        self.assertTrue(pairs, "requirements-dev.txt lists nothing")
+        for name, spec, _hashes in pairs:
+            self.assertRegex(spec, r"^[A-Za-z0-9._-]+==[0-9]", f"not an exact pin: {spec}")
+            self.assertTrue(name, f"cannot read a package name from {spec}")
+
+    def test_every_requirement_carries_a_well_formed_sha256(self) -> None:
+        for name, spec, hashes in _logical_requirements(DEV_REQUIREMENTS.read_text(encoding="utf-8")):
+            self.assertTrue(hashes, f"{name} has no --hash; pip --require-hashes would refuse the file")
+            for digest in hashes:
+                self.assertRegex(digest, r"^sha256:[0-9a-f]{64}$", f"{name} has a malformed hash")
+
+    def test_each_package_appears_once(self) -> None:
+        names = [name for name, _spec, _h in _logical_requirements(
+            DEV_REQUIREMENTS.read_text(encoding="utf-8"))]
+        duplicates = sorted({n for n in names if names.count(n) > 1})
+        self.assertEqual([], duplicates, "duplicate pins: " + ", ".join(duplicates))
 
     def test_the_pinned_pytest_matches_the_installed_one(self) -> None:
         text = DEV_REQUIREMENTS.read_text(encoding="utf-8")
-        match = re.search(r"^pytest==(\S+)$", text, re.MULTILINE)
+        match = re.search(r"^pytest==(\S+)", text, re.MULTILINE)
         self.assertIsNotNone(match, "pytest is not pinned in requirements-dev.txt")
         try:
             import pytest
         except ImportError:  # bare python: nothing to compare against
             self.skipTest("pytest is not importable here")
         self.assertEqual(match.group(1), pytest.__version__, "the pin and the installed pytest disagree")
+
+    def test_the_file_covers_everything_pytest_itself_requires(self) -> None:
+        """A hash-pinned file is all-or-nothing: one unlisted dependency breaks it."""
+        try:
+            from importlib.metadata import requires
+        except ImportError:  # pragma: no cover - importlib.metadata is 3.8+
+            self.skipTest("no importlib.metadata")
+        try:
+            declared = requires("pytest")
+        except Exception:  # pytest is not installed in a bare interpreter
+            self.skipTest("pytest metadata is not available here")
+        self.assertIsNotNone(declared)
+        pinned = {name.lower().replace("_", "-") for name, _s, _h in _logical_requirements(
+            DEV_REQUIREMENTS.read_text(encoding="utf-8"))}
+        needed = set()
+        for line in declared:
+            if "extra ==" in line:
+                continue  # extras are not installed by `pip install pytest`
+            match = re.match(r"^[A-Za-z0-9._-]+", line)
+            if match:
+                needed.add(match.group(0).lower().replace("_", "-"))
+        self.assertEqual(set(), needed - pinned, "pytest requires packages the file does not pin")
+
+    def test_no_runtime_package_is_pinned_as_a_dev_dependency(self) -> None:
+        """The pins are test-time only; shipping code must not import any of them."""
+        pinned = {name.lower().replace("_", "-") for name, _s, _h in _logical_requirements(
+            DEV_REQUIREMENTS.read_text(encoding="utf-8"))}
+        imported: set[str] = set()
+        for path in _python_files(SHIPPING_ROOTS):
+            imported |= {n.lower().replace("_", "-") for n in _imported_roots(path)}
+        overlap = sorted(pinned & imported)
+        self.assertEqual([], overlap, "these pins are imported by shipping code: " + ", ".join(overlap))
 
 
 class SourceEncodingTests(unittest.TestCase):

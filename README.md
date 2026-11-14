@@ -17,7 +17,7 @@ provenance checker. What is **simulated**: model output, which is served from re
 the analysis pipeline (`SPEC` M9) and the human study (Q1/Q2 — designed, never run).
 **No human data has been collected.** Every session in this repository was run by the author.
 
-Prose word count of this README: **1122 words**, counted by `python tools/word_count.py` with this rule:
+Prose word count of this README: **1141 words**, counted by `python tools/word_count.py` with this rule:
 blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
 (headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
 says 889, so the earlier figure was wrong rather than counted differently. `python tools/word_count.py
@@ -68,7 +68,9 @@ python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis   # results.
 python -m analysis.run --selftest                                     # statistics checked against known answers
 ```
 
-`pytest` is a **test-time** dependency only (installed into `.venv/`, not committed).
+`pytest` is a **test-time** dependency only (installed into `.venv/`, not committed), pinned with
+sha256 hashes in `requirements-dev.txt`: `pip install --require-hashes -r requirements-dev.txt`
+either installs exactly those nine artefacts or fails.
 If it is available: `python -m pytest -q`.
 
 ## One command, from a clean checkout
