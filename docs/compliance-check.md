@@ -284,6 +284,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
 
 其中 `Task time` 的配对检验这一次给出 `diff = -16.33`、`p = 0.036`，并且 `multiplicity: 1 tests, 1 survive Holm at alpha=0.05`；仓库自带那一轮是 `p = 0.058`（0 个存活）。**同一份代码、同一份配置，只是墙钟时长的抽样不同**，所以这一项既不稳定也不可引用——报告 §4 已按这个事实改写（三次运行分别 0.058 / 0.036 / 0.035）。
 
-交付快照：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（161 条目、694,860 字节、`sha256:5621d11ceda04f89e000f584f80c722a82cf2ce4288221c1d2a9af121d33af1c`），`--verify` 通过，两次构建同一 hash。
+交付快照：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（161 条目、696,791 字节、`sha256:07651cd4ac339adc4a23104abb5541b5591dda4883bf7fffce2464989266b40c`，对应提交 `d616cd9` 的树），`--verify` 通过，两次构建同一 hash。记录这个 hash 的文字本身也在归档里，所以之后重建必然得到不同 hash——复核请看 `docs/rubric-mapping.md` §2j 的"自指说明"。
 
 **仍未验证**：§8 的五条全部仍然成立（干净机器、真人使用 UI、`live` 真调 API、并发压力、档位→分值映射）；再加一条，`pip install --require-hashes` 在本机跑不了（§7 的 P3 行已写明替代证据）。**本节不声称**任何真人研究或真实模型调用已经完成。

@@ -234,7 +234,9 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | 5 | `python tools/scan_secrets.py` 零命中 | `ok: 0 finding(s) in 176 files` | `test_5_no_secret_or_endpoint_is_committed`（`:89`） |
 | 6 | `python -m govern.provenance --check` | `ok: 31 rows, 11 modules covered (original=10, reused=3, assisted=18)` | `test_6_the_provenance_ledger_checks_out`（`:94`） |
 
-**冻结产物（2026-11-14，最终评审快照）**：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（161 个条目，694,860 字节），`dist/SHA256SUMS` 记 `5621d11ceda04f89e000f584f80c722a82cf2ce4288221c1d2a9af121d33af1c`。`--verify` 复核通过，且**同一棵树重建两次字节相同**（实测两次 `--build` 输出同一 hash）——否则"快照"标识的是构建机器，不是这份工作。`python tools/make_release.py --selftest` → `ok: 161 files, 16 directory rules, 9 file rules, tree digest b8461aae3df0`。
+**冻结产物（2026-11-14，最终评审快照，对应提交 `d616cd9`）**：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（161 个条目，696,791 字节），`dist/SHA256SUMS` 记 `07651cd4ac339adc4a23104abb5541b5591dda4883bf7fffce2464989266b40c`。`--verify` 复核通过，且**同一棵树重建两次字节相同**（实测两次 `--build` 输出同一 hash）。`python tools/make_release.py --selftest` → `ok: 161 files, 16 directory rules, 9 file rules, tree digest 9dbf20fecc20`。
+
+**自指说明（必须和这条 hash 一起读）**：记录这个 hash 的这几行文字本身也在归档里，所以在那之后重建会得到**不同**的 hash——这不是构建不确定性，是"把指纹写进被指纹的东西"。因此上面这条 hash 属于提交 `d616cd9` 的树；复核方式是 `git checkout d616cd9` 后再 `--build`，应得到同一个 `07651cd4…`。同一处理方式见台账的 P-019 与 `docs/PROVENANCE.md`。
 
 **关于更早的那个快照**：M11 当时（commit `00fdf92`）的归档是 123 个条目、410,797 字节、`sha256:2f2ea5d269f260d03bd8b942b3cac8ec41383b6266e8824e94b5944b772590c4`。此后加入 `experiments/`、`analysis/`、报告、`storyboards/` 第 4 帧、`System diagram/`、`tools/reproduce.ps1` 与 `requirements-dev.txt`，所以**交付时的树对应的是上面 161 个条目那一条**；旧 hash 保留在这里是因为它能复核——`git checkout 00fdf92` 后重建应得到同一个 `2f2ea5d2…`。
 

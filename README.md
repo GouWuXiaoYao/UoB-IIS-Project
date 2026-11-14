@@ -17,7 +17,7 @@ provenance checker. What is **simulated**: model output, which is served from re
 the analysis pipeline (`SPEC` M9) and the human study (Q1/Q2 — designed, never run).
 **No human data has been collected.** Every session in this repository was run by the author.
 
-Prose word count of this README: **1159 words**, counted by `python tools/word_count.py` with this rule:
+Prose word count of this README: **1185 words**, counted by `python tools/word_count.py` with this rule:
 blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
 (headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
 says 889, so the earlier figure was wrong rather than counted differently. `python tools/word_count.py
@@ -134,9 +134,11 @@ Two identifiers, because neither alone is enough here:
    The `govern/` system was frozen at `00fdf92` (123 files,
    `sha256:2f2ea5d2…`). Later commits add `experiments/`, `analysis/`, the report, a fourth
    storyboard frame, the system diagram and the one-command reproducer, so the archive of the
-   tree you are reading is larger: at commit `HEAD` it is 161 entries, 694,860 bytes,
-   `sha256:5621d11c…`. Rebuild rather than trusting a number quoted here, and note that
-   rebuilding an earlier commit reproduces that commit's hash.
+   tree you are reading is larger: at commit `d616cd9` it is 161 entries, 696,791 bytes,
+   `sha256:07651cd4…`. A line that records a hash is itself part of the tree it describes, so
+   rebuilding after that line lands changes the hash: `git checkout d616cd9` and build to get
+   the number quoted here, and note that rebuilding any earlier commit reproduces that
+   commit's hash.
 
 ## Development record
 
