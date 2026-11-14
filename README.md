@@ -17,7 +17,12 @@ provenance checker. What is **simulated**: model output, which is served from re
 the analysis pipeline (`SPEC` M9) and the human study (Q1/Q2 — designed, never run).
 **No human data has been collected.** Every session in this repository was run by the author.
 
-Prose word count of this README: **210 words** (code blocks, commands and the layout table excluded).
+Prose word count of this README: **838 words**, counted by `python tools/word_count.py` with this rule:
+blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
+(headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
+says 838, so the earlier figure was wrong rather than counted differently. `python tools/word_count.py
+--check` fails whenever the stated number and the text disagree. There is no README word limit; the
+number is here so the check can be run by anyone.
 
 ## How to run
 
@@ -56,6 +61,13 @@ python -m experiments.run --config conditions.yaml --resume    # only the cells 
 
 `metrics.json` is recomputed from the JSONL logs, not accumulated in memory, so deleting it and
 re-running `--resume` reproduces the same numbers.
+
+The analysis layer turns those logs into a result table, four figures and paste-ready captions:
+
+```powershell
+python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis   # results.xlsx + figures/ + captions.md
+python -m analysis.run --selftest                                     # statistics checked against known answers
+```
 
 `pytest` is a **test-time** dependency only (installed into `.venv/`, not committed).
 If it is available: `python -m pytest -q`.
@@ -131,8 +143,9 @@ by running the commands above, not by inspection alone.
 | `tools/` | generators: `make_repo.py` (corpus), `make_recordings.py` (replay), `make_storyboard.py` (screenshots), `scan_secrets.py` |
 | `static/` | `index.html`, the only UI file |
 | `experiments/` | the harness around the instrument: `spec.py` (condition file), `runner.py` (bounded parallelism, resume, failure isolation), `metrics.py` (recompute from logs), `run.py` (CLI), `conditions.yaml` |
+| `analysis/` | the statistics on top of the logs: `load.py`, `checks.py`, `stats.py`, `report.py`, plus hand-written `xlsx.py` and `png.py` (no third-party packages) |
 | `storyboards/` | three captured interaction frames and a frame-by-frame script |
-| `tests/` | 352 test cases across 19 modules |
+| `tests/` | 384 test cases across 21 modules |
 | `config/` | every threshold, seed, rule and model id — no magic numbers in code |
 | `docs/` | `SPEC.md`, `PLAN.md`, `PROVENANCE.md`, `rubric-mapping.md` |
 

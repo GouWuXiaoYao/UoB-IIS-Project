@@ -111,6 +111,13 @@ class FreezeTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertEqual(before, after, "a dry run created files under runs/")
 
+    def test_the_readme_states_its_own_prose_word_count_correctly(self):
+        # The first version of the README stated a hand-counted number that was wrong
+        # by a factor of four, so the claim is now machine-checked.
+        code, out = _run("tools/word_count.py", "--check")
+        self.assertEqual(code, 0, out)
+        self.assertIn("prose words and has", out)
+
 
 if __name__ == "__main__":
     unittest.main()

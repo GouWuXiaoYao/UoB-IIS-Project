@@ -282,17 +282,56 @@ ok: 0 ran, 12 skipped, 0 failed of 12 → runs\E-SIM-01      # 同一张表
 
 ---
 
-## 3. 模块级证据
+## 2l. 分析层 → 证据（`analysis/`，从日志读出统计结论）
+
+日志是唯一数据源（AGENTS §2.6），所以 `analysis/` 只读 `runs/<run_id>/logs/*.jsonl`，不改 `govern/`、不重新跑实验、不引入第三方库（AGENTS §1：本机 `pip` 不可用，也没有 `pandas`/`scipy`/`openpyxl`/`matplotlib`）。xlsx 与 PNG 都是本仓库自己写的最小写出器。
+
+| # | 需求 | 证据 | 覆盖测试 |
+|---|---|---|---|
+| 1 | 描述统计 + 效应量 + 置信区间 | `stats.summarise()` 给 n/mean/sd/median/q1/q3/min/max 与 **t 分布** 95% 均值区间（无方差时明写 `undefined (no variance)`，不打印一个假区间）；`stats.cohens_dz()`、`stats.hedges_g()`（配对设计用小样本校正，比 `dz` 略小）；`stats.bootstrap_ci()` 用固定 seed 的百分位自举作为 t 区间的稳健性对照。落到 `Descriptives` 工作表（17 行 × 13 列） | `test_paired_t_matches_published_values`、`test_t_distribution_matches_the_table`、`test_summary_ci_uses_the_t_quantile`、`test_hedges_g_is_smaller_than_dz`、`test_bootstrap_ci_is_deterministic`（`tests/test_analysis.py:102`–`:158`） |
+| 2 | 组间比较：配对 t / Wilcoxon / 混合效应模型，说明选择理由与前提 | 三种都实现并**同时给出**，不做"选一个看起来显著的"：`stats.paired_t()`（前提：差值近似正态、无零差分）、`stats.wilcoxon()`（无并列走精确 DP，有并列走正态近似 + 并列校正 + 连续性校正；`n<6` 时提示精确 p 不可能低于 0.05）、`stats.mixed_model()`（随机截距、REML、单参数 λ 黄金分割；样本内只有一组截距时返回"共线"而不是硬拟合）。前提检查在 `checks.assumption_notes()`，逐条写进 `Paired tests` 的 `Note` 列 | `test_wilcoxon_exact_p_matches_brute_force`（用 2^n 枚举核对 DP 结果）、`test_wilcoxon_is_undefined_when_nothing_changes`、`test_wilcoxon_reports_a_tie_corrected_approximation`、`test_mixed_model_recovers_the_within_group_difference`、`test_mixed_model_refuses_one_group`（`:117`–`:172`）、`test_planted_difference_is_recovered`（假 run 里植入 C1−C0 = −1，检验被复原） |
+| 3 | `analysis/results.xlsx` + PNG 图，图注可直接进论文 | `xlsx.write()` 写 7 个工作表（README / Descriptives / Paired tests / Multiplicity / Checks / Figures / Sessions），`[Content_Types].xml` + `styles.xml` 手写，`ZipInfo.date_time` 固定 → 同样输入两次构建字节相同；`png.Canvas` 写 IHDR+IDAT+IEND。四张图：`fig1_outcome_bars`（均值 + 95% CI 误差棒）、`fig2_paired_slope`（按任务的配对斜率）、`fig3_events_per_session`（卡带来了多少交互 = 操纵检查，不是结局）、`fig4_distribution`（每会话任务时长的散点 + 均值线）。`captions_markdown()` → `analysis/captions.md`，每条注记都把 n、检验名与"这不是什么"写全 | `test_output_is_byte_identical_for_the_same_cells`、`test_round_trip_keeps_text_and_numbers`、`test_png_header_and_dimensions`、`test_text_changes_pixels_and_is_deterministic`、`test_end_to_end_outputs`（`:216`–`:234`、`:326`） |
+| 4 | 单独检查：数据缺失 / 异常值 / 多重比较校正 | `checks.missing()`：预期 cell 数 vs 实际日志数、未结束会话、缺 `task_end`、配对缺一侧、坏行数——**坏行计数而不吞掉**；`checks.outliers()`：中位数 + MAD，`|z|>3.5` 标记，`MAD==0` 时不报异常并写明理由（否则 0/0 会把每个点都标成离群）；`checks.multiplicity()`：Holm 与 BH **都印**，因为相关指标下两者都不严格正确；`STRUCTURAL = {"gate_latency_ms","blocked_attempts"}` 从家族里排除（见下） | `test_bad_lines_are_counted_not_swallowed`、`test_pairing_keeps_only_complete_pairs`、`test_missing_cell_is_reported`、`test_outlier_flag_finds_the_planted_value`、`test_outliers_are_not_computed_when_mad_is_zero`、`test_multiplicity_needs_p_values`、`test_holm_and_bh_against_hand_computation`（`:252`–`:261`、`:301`–`:321`、`:177`） |
+
+**实测（`python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis`）**
+
+```
+missing: expected 12, found 12 sessions, 12 ended, 12 with an outcome
+multiplicity: 1 tests, 0 survive Holm at alpha=0.05
+
+ok: 12 session logs, 4 figures
+  workbook: analysis\results.xlsx
+  captions: analysis\captions.md
+```
+
+唯一进入多重比较家族的是任务时长 `elapsed_ms`：差 −2.33 ms，t(5) = −2.44，p = 0.0578（Holm 后仍 0.0578，不显著）。七个结局指标（`debt_delta`/`vuln_delta`/`n_fail`/`lines_added`/…）**每对差值完全相同**，所以 t 与 Wilcoxon 都返回 `n/a`，并在 `Note` 列写明"标准误为 0，统计量是 0/0，不是无限证据"——把它们印成 p<0.001 会是彻头彻尾的伪造。
+
+**如实记录（这一层的边界）**
+
+- **这不是治理有效的证据**。操作者是脚本（`govern/run.py` 的 `_rehearse`），C0 与 C1 收到的是**同一份**重放建议，所以结局指标按设计必然相等。分析层的价值是证明"指标能从日志算出来、且算错会被抓住"，不是证明实验有发现。
+- **结构性零值不能当效应比**：`gate_latency_ms` 与 `blocked_attempts` 在 baseline 里恒为 0（C0 没有卡、没有门），"常数 0 vs 一个测量值"不是组间差异。它们被标成 `structural zero in baseline` 并从多重比较家族里排除；`test_report_marks_a_structural_zero`（`:346`）钉死这个标注。
+- **混合效应模型在真实数据上不可识别**：只有一个参与者、六个任务，随机截距与截距共线，函数返回说明字符串而不是硬拟合。它的数值正确性只在测试里用两组结构验证（`test_mixed_model_recovers_the_within_group_difference`）——这是"实现了"，不是"用上了"。
+- **PNG 不是出版级排版**：5×7 位图字库、只画大写、900 px 宽。可读、可复现、无第三方依赖，但放进论文要用图注与表格承载细节。
+- **缺失检查在真实 run 上全是零**：`E-SIM-01` 没有缺 cell、没有坏行、没有未结束会话，所以三条检查的实际触发只在构造的假 run 上验证（`StudyTests`）。这是诚实缺口，不是覆盖。
+- 分析层不改 `govern/` 的任何一个字节，也不消费 `runs/` 之外的东西（`R-DEMO`、`R-ADHOC` 混进来会把 12 个会话算成 19 个，所以 `_resolve()` 要求显式 `--run-id`，`test_two_runs_need_an_explicit_choice`）。
+
+---
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
 |---|---|---|---|
 | `govern/provenance.py` | 新增（M10 = SPEC M11） | `MODULES` `:41`、`ORIGINS` `:44`、`Row` `:53`、`_filled()` `:64`、`parse()` `:78`、`_source_exists()` `:104`、`check()` `:118`、`summarise()` `:158`、`report()` `:171`、`_selftest()` `:186`、`main()` `:243` | `tests/test_provenance.py`（23 条：解析 6、规则 12、CLI 4、自检 1）；`python -m govern.provenance --check` → `ok: 21 rows, 11 modules covered (original=8, reused=3, assisted=10)` |
 | `docs/PROVENANCE.md` | 交付物（M10） | 20 行台账，M1–M11 全覆盖；`assisted` 行带 decision + check，`reused` 行指向 `参考代码库/` 的真实路径 | `test_the_shipped_ledger_passes`（`tests/test_provenance.py:105`）、`test_the_shipped_ledger_covers_every_module`（`:109`） |
 | `tools/make_release.py` | 新增（M11） | `version()` `:48`、`_skip()` `:55`、`payload()` `:70`、`archive_name()` `:84`、`build()` `:88`、`sha256_of()` `:103`、`write_manifest()` `:111`、`verify()` `:118`、`_selftest()` `:143`、`main()` `:164`；排除规则 `SKIP_DIRS` `:34`、`SKIP_SUFFIXES` `:39`、`SKIP_NAMES` `:40`、`SKIP_PREFIXES` `:43` | `tests/test_release.py`（13 条：归档 5、清单 4、CLI 4）；`python tools/make_release.py --selftest` → `ok: 123 files, 15 directory rules, 9 file rules, tree digest 2db36961aa65`；`--build` → `ok: a2-1.0.0.zip sha256:2f2ea5d2…`，`--verify` → `ok: SHA256SUMS matches the archive` |
-| `experiments/spec.py` | 新增（冻结后追加） | `parse_yaml()` `:46`（YAML 子集，JSON 直读）、`load()` `:265`、`validate()` `:276`、`load_tasks()` `:333`、`Spec.cells()` `:241`、`Spec.task_order()` `:225` | `tests/test_experiments.py`（24 条：YAML 6、spec 6、runner 4、metrics 5、CLI 3）；`python -m experiments.run --config conditions.yaml --dry-run` → `ok: 2 conditions × 6 tasks … = 12 sessions (concurrency 2)` |
-| `experiments/runner.py` | 新增（冻结后追加） | `plan()` `:52`、`is_done()` `:67`、`write_snapshot()` `:91`、`write_manifest()` `:108`、`execute()` `:170` | `test_a_run_writes_the_snapshot_logs_and_metrics`、`test_resume_skips_sessions_that_already_ended`、`test_a_failing_cell_does_not_stop_the_batch` |
-| `experiments/metrics.py` | 新增（冻结后追加） | `read_session()` `:40`、`collect()` `:66`、`blind_accepts()` `:82`、`confirmations()` `:99`、`summarise()` `:196`、`rebuild()` `:236`、`write()` `:246` | `tests/test_experiments.py` 的 MetricsTests（5 条：逃逸率、OTI、解释打开后不盲、机械确认、配对行） |
+| `experiments/spec.py` | 新增（冻结后追加） | `parse_yaml()` `:36`（YAML 子集，JSON 直读）、`load()` `:265`、`validate()` `:276`、`load_tasks()` `:338`、`Spec.cells()` `:241`、`Spec.task_order()` `:225` | `tests/test_experiments.py`（24 条：YAML 6、spec 6、runner 4、metrics 5、CLI 3）；`python -m experiments.run --config conditions.yaml --dry-run` → `ok: 2 conditions × 6 tasks … = 12 sessions (concurrency 2)` |
+| `experiments/runner.py` | 新增（冻结后追加） | `plan()` `:47`、`is_done()` `:67`、`write_snapshot()` `:91`、`write_manifest()` `:108`、`execute()` `:177` | `test_a_run_writes_the_snapshot_logs_and_metrics`、`test_resume_skips_sessions_that_already_ended`、`test_a_failing_cell_does_not_stop_the_batch` |
+| `experiments/metrics.py` | 新增（冻结后追加） | `read_session()` `:27`、`collect()` `:57`、`blind_accepts()` `:82`、`confirmations()` `:99`、`summarise()` `:194`、`rebuild()` `:236`、`write()` `:243` | `tests/test_experiments.py` 的 MetricsTests（5 条：逃逸率、OTI、解释打开后不盲、机械确认、配对行） |
 | `experiments/run.py` + `conditions.yaml` | 新增（冻结后追加） | CLI `main()` `:69`；实验文件定义 `baseline→C0`/`governance→C1`、`pairs`、`repetitions`、`concurrency.max_parallel` | `tests/test_experiments.py` 的 CliTests（3 条） |
+| `analysis/load.py` | 新增（冻结后追加） | `Session` `:24`、`session_from_file()` `:172`（`_stamp()` `:111` **跳过空值**取 `task_id`）、`load_run()` `:191`、`paired_series()` `:256` | `tests/test_analysis.py` 的 LoaderTests（`test_task_id_comes_from_the_events_that_carry_it`、`test_bad_lines_are_counted_not_swallowed`、`test_pairing_keeps_only_complete_pairs`） |
+| `analysis/stats.py` | 新增（冻结后追加） | `summarise()` `:155`、`bootstrap_ci()` `:184`、`cohens_dz()` `:244`、`hedges_g()` `:251`、`paired_t()` `:261`、`wilcoxon()` `:306`、`mixed_model()` `:400`、`compare_paired()` `:501`、`holm()` `:531`、`benjamini_hochberg()` `:544` | `tests/test_analysis.py` 的 KnownAnswerTests（11 条，含 2^n 枚举核对 Wilcoxon DP） |
+| `analysis/checks.py` | 新增（冻结后追加） | `missing_report()` `:46`、`outliers()` `:106`（中位数 + MAD）、`multiplicity()` `:149`、`family_rows()` `:174` | `test_missing_cell_is_reported`、`test_outlier_flag_finds_the_planted_value`、`test_outliers_are_not_computed_when_mad_is_zero`、`test_multiplicity_needs_p_values` |
+| `analysis/report.py` | 新增（冻结后追加） | `METRICS` `:24`、`STRUCTURAL` `:38`、`analyse()` `:101`、`figure_bars()` `:168`、`figure_slope()` `:223`、`figure_events()` `:264`、`figure_dots()` `:306`、`_test_rows()` `:355`（Status/Note 列）、`build_outputs()` `:434` | `test_report_marks_a_structural_zero`、`test_end_to_end_outputs`、`test_planted_difference_is_recovered` |
+| `analysis/xlsx.py` / `analysis/png.py` | 新增（冻结后追加） | `write()` `xlsx.py:106`（7 表、固定 `date_time`）、`read_sheets()` `:164`；`Canvas` `png.py:91`（5×7 位图字库、IHDR+IDAT+IEND） | `test_output_is_byte_identical_for_the_same_cells`、`test_round_trip_keeps_text_and_numbers`、`test_every_sheet_is_present`、`test_png_header_and_dimensions`、`test_drawing_outside_the_canvas_is_clipped` |
+| `analysis/run.py` | 新增（冻结后追加） | `_table()` `:67`、`_selftest()` `:114`、`main()` `:151`（`--runs/--run-id/--out/--selftest/--json`，多 run 必须显式选一个） | CliTests（4 条）；实测 `python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis` → `ok: 12 session logs, 4 figures` |
 | `govern/session.py` | 新增（M8 = SPEC M2） | `load_schedule()` `:68`；`assign()` `:83`；`chi_square_p()` `:114`；`simulate()` `:126`；`rebuild_state()` `:165`；`Session` `:216`（`start/submit_prompt/toggle/confirm/generate/act/end/state/checkpoint/resume`）；`_selftest()` `:576` | `tests/test_session.py`（37 条：分配 9、模拟 7、同意 3、流程 11、续跑 4）；`python -m govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000` |
 | `govern/run.py` | 重写（M8） | `log_for()` `:31`；`_rehearse()` `:87`；`selftest()` `:139`；`single()` `:165`；`batch()` `:202`；`resume()` `:242`；`simulate()` `:266`；`main()` `:315` | `tests/test_run.py`（9 条：自检/演练 2、模拟 1、单会话 3、批处理 2）；`python -m govern.run --selftest` → `ok: 6 tasks, 6 cards` |
 | `config/schedule.json` | 新增（M8） | `schedule_id: SCH-01`、`seed: 42`、三对、`P01`–`P10`、`orders` AB/BA 交替 | `test_the_shipped_schedule_covers_every_pair`（`tests/test_session.py:64`）、`test_task_index_is_sequential_from_zero`（`:80`） |
@@ -398,13 +437,19 @@ python tools\make_release.py --selftest     # 核对排除规则
 .\.venv\Scripts\python.exe -m experiments.run --config conditions.yaml
 .\.venv\Scripts\python.exe -m experiments.run --config conditions.yaml --resume   # 续跑：只剩没跑完的 cell
 .\.venv\Scripts\python.exe -m pytest tests\test_experiments.py
+
+# 分析层（冻结后追加）：12 个会话 → results.xlsx + 4 张图 + captions.md
+.\.venv\Scripts\python.exe -m analysis.run --runs runs --run-id E-SIM-01 --out analysis
+.\.venv\Scripts\python.exe -m analysis.run --selftest        # 统计/工作簿/画布对已知答案自检
+.\.venv\Scripts\python.exe -m pytest tests\test_analysis.py
+python tools\word_count.py --check                           # README 自称的 838 词必须与正文一致
 ```
 
 > 说明：`.venv/` 只是本机开发工具链（pytest 属**测试期**依赖，不进入运行时）；
 > 交付代码在 `govern/` 与 `tools/` 内，只用标准库。隐藏测试套件自 M7 起由
 > `govern/hidden.py` 用标准库在子解释器里跑（不再需要 pytest），所以
 > `python -m govern.corpus --check` 与 `python -m govern.score --selftest`
-> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（352 条）。
+> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（384 条）。
 
 ---
 
@@ -468,6 +513,10 @@ python tools\make_release.py --selftest     # 核对排除规则
 | `govern.run` 新增公开别名 `rehearse()` / `close_session()`（experiments 层） | 编排层需要"跑完一次会话并收尾"，而原实现只有下划线私有的 `_rehearse()` / `_close()`；让 `experiments/runner.py` 去碰私有名会破坏 AGENTS §3 的模块边界 | 两个别名只是转发，签名与行为不变；`_private` 仍被 `batch()`/`single()` 使用，`tests/test_run.py` 未受影响 |
 | `scan_secrets.SKIP_DIRS` 增加 `runs` 与 `dist`（experiments 层） | 会话快照的 `work/` 是语料副本，跑过一次实验后扫描文件数从 137 涨到 317，且 `runs/` 本就 `.gitignore`（AGENTS §4） | 扫描器只扫会被提交的东西；实测回到 `ok: 0 finding(s) in 137 files`，注释里写明这两个目录为何跳过 |
 | `experiments.run` 多给一个 `--limit N`（experiments 层） | 调试时只想跑前几个 cell；不给就只能改实验文件，那会污染"实验定义"这一层 | 只影响调度数量，不写进 `metrics.json`；`--resume` 与它并存时先按已完成跳过再截断 |
+| 新增顶层包 `analysis/`（分析层） | SPEC M10 原本按 Q8 标 **N/A**（"分析管线"不在本期交付集），`govern/` 只负责产出日志。用户后续要求"基于 runs/ 的日志生成分析脚本"，于是补上这一层；让它独立于 `govern/` 是为了守住 AGENTS §2.6"日志是唯一数据源"——分析不得反过来影响被测系统 | 只读 `runs/<run_id>/logs/**/*.jsonl`，不 import `govern` 的任何模块（除了比对常量），不改 `govern/` 一个字节 |
+| xlsx 与 PNG 由本仓库自己写（分析层） | AGENTS §1 要求零第三方运行时依赖，本机 `pip` 不可用（`Errno 13`），`pandas`/`scipy`/`openpyxl`/`matplotlib` 全都没有；不自己写就没有 `results.xlsx` 与图 | `analysis/xlsx.py` 与 `analysis/png.py` 各约 200 行，只用 `zipfile`/`zlib`/`struct`；输出确定性（固定 `ZipInfo.date_time`），靠往返测试与已知答案测试锁定 |
+| `python -m analysis.run` 在有多个 run 时必须显式 `--run-id`（分析层） | `runs/` 下还躺着 `R-DEMO`（6 会话）与 `R-ADHOC`（1 会话），默认"全部合并"会把 12 个 cell 算成 19 个并重复计数同一任务 | 缺 `--run-id` 时打印候选并以非零退出；`test_two_runs_need_an_explicit_choice` 钉死 |
+| `tools/word_count.py` + README 字数自纠（分析层同期） | README 一直写着 "210 words"，实为手算错值（实测 838）；评分说明虽无 README 字数上限，但一个能被轻易证伪的数字会连带削弱其余陈述的可信度 | 新增工具按**明文规则**计数，`--check` 与 `tests/test_end_to_end.py` 的 `test_the_readme_states_its_own_prose_word_count_correctly` 一起防止再漂移；README 里保留"旧值错了"的说明而不是悄悄改掉 |
 
 ---
 
@@ -483,7 +532,7 @@ python tools\make_release.py --selftest     # 核对排除规则
 - LLM 客户端（SPEC M3 / PLAN M6）**已实现**，但只交付 `replay` 模式：`live` 需要 `A2_API_BASE` + `A2_API_KEY`，本机没有，故从未对真实服务发起过请求。
 - 结果评估器（SPEC M8 / PLAN M7）**已实现**，但**没有跑过任何一次会话**：`baseline()`/`evaluate()` 只在 6 个种子仓库与测试里的构造样本上验证过，`debt_delta`/`vuln_delta`/`lines_added` 还没有一条来自真实会话的数据。
   - 已实测的覆盖缺口：六类规则**测不到**轻层语料的坏味道（浮点金额、模块级缓存、语义重复的税额推导），L 层 `debt=0`，M=3，H=8（加权）。因此"债务下降"只在 M/H 层可测；L 层靠隐藏测试与行数指标。这一条不得在报告里含糊成"每层都能测出债务下降"。
-- 端到端指标重算（SPEC M10 `analysis/`）是 **N/A**（SPEC 3.0 交付集），所以"由日志重算全部指标"这条链路**没有实现**；`govern.log --purge` 之后无法重算依赖已删数据的结论，这一点在 SPEC M7 验收 7 里已如实降级记录。
+- 端到端指标重算（SPEC M10 `analysis/`）原本是 **N/A**（SPEC 3.0 交付集），冻结后由 `experiments/metrics.py` 与 `analysis/` 补上（见本节最后一条）；`govern.log --purge` 之后无法重算依赖已删数据的结论，这一点在 SPEC M7 验收 7 里已如实降级记录。
 - 会话控制器与 CLI（SPEC M8 / PLAN M8）**已实现**，但它跑的是**作者自测**会话：确认者是终端用户本人，不是招募来的被试；`--session`/`--batch` 产出的日志是 SIM 数据，不得当作被试数据汇报。
 - **Web 界面（SPEC M9 / PLAN M9）已实现**：`python -m govern.run --session … --task … --port 8000` 启动本地服务器（只绑 `127.0.0.1`），页面分左右两栏，复选框从不预勾选，未勾满时生成被 409 拒绝且拒绝本身进日志，C0 走无门路径。三张 storyboard 帧是**真实服务器响应**的无头浏览器照片（`tools/make_storyboard.py`），不是绘制稿；但交互后的 JS 行为没有浏览器自动化测试覆盖——`tests/test_web.py` 测的是 HTTP 契约与页面源码。
 - **UI 里的会话仍是作者自测**：`runs/` 不入库，页面里没有任何人类被试数据；帧中的左栏为空，因为请求正文按 Q7 不落盘，重绘不出当时的输入。
@@ -493,4 +542,5 @@ python tools\make_release.py --selftest     # 核对排除规则
   - 因此台账里的 `check` 列一律写成**可复跑的命令或具名测试**，不写"已审阅"这类无法验证的措辞；`original` 也不用来夸功——它只在"这是作者的裁定/红线"时使用。
   - `P-019`、`P-020` 两行的 `commit` 列由紧随其后的一次文档提交补齐（台账无法在自己的提交里引用自己的 hash）。
 - **全链路冻结（M11）已完成，但"完成"指六条可跑的定义**（`docs/PLAN.md:13-20`），不含"有人类数据"：`--batch` 的六个 slot 全部 `tests_pass=False`，因为随附的模拟建议**故意**漏掉 gold patch 的最后一个文件段（`test_every_shipped_suggestion_omits_at_least_one_consumer`）。这条命令证明管线能跑通并如实判负，**不是**处理效应；不要把它写成"治理组提升了 X%"。
-- `analysis/`（SPEC M10）仍是 **N/A**，但**指标重算这条链路在冻结后补上了一半**：`experiments/metrics.py` 从 `runs/<run_id>/logs/` 重算 `escape rate`/`OTI`/`mechanical share`/`debt Δ` 并写 `metrics.json`，因此 `tau_review_ms` 与 `mech_dwell_ms` **已有真正的消费者**（§2k）。仍未做的是"删数据后报告哪些结论失效"（`purge` 的后半句）与任何统计检验——`statistics`/绘图仍属 `planned`。
+- `analysis/` 的**统计与绘图现已实现**（§2l）：描述统计、效应量、t 区间、配对 t / Wilcoxon / 混合模型的实现与前提检查、Holm/BH 校正、缺失/异常/多重比较三项检查、`results.xlsx` 与四张 PNG 全部可一条命令重建。仍未做的是**"删数据后报告哪些结论失效"**（`purge` 的后半句）——所以 `purge` 只交付"删除清单"这一半。
+  - 同时如实说明：`analysis/` 跑出来的**不是实验结论**。操作者是脚本、两个条件收到同一份重放建议，七个结局指标每对差值恒为 0，t/Wilcoxon 因此返回 `n/a`；唯一有方差的 `elapsed_ms` 差 −2.33 ms、p=0.0578，不显著。它证明的是"指标能从日志算出来、算错会被测试抓住"。
