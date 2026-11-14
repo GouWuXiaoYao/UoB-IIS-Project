@@ -113,6 +113,16 @@ def _rehearse(sess: session.Session, consent: dict | None) -> dict:
     }
 
 
+def rehearse(sess: session.Session, consent: dict | None) -> dict:
+    """Public entry point for the headless SIM script, used by ``experiments/``."""
+    return _rehearse(sess, consent)
+
+
+def close_session(sess: session.Session, started: float, completed: bool = True) -> None:
+    """Public entry point for writing ``session_end``, used by ``experiments/``."""
+    _close(sess, started, completed=completed)
+
+
 def _new_session(
     run_dir: Path,
     task: tasks.Task,

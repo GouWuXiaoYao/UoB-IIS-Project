@@ -32,7 +32,7 @@ python -m govern.log --selftest            # ok: 16 event types, seq from 1, ato
 python -m govern.score --selftest          # ok: 6 rules with positive and negative fixtures
 python -m govern.session --selftest        # ok: 10 participants, 6 slots each, deterministic
 python -m govern.web --selftest            # ok: 6 routes wired
-python -m govern.provenance --check        # ok: 20 rows, 11 modules covered
+python -m govern.provenance --check        # ok: 21 rows, 11 modules covered
 python -m unittest discover -s tests -q    # standard-library test runner
 ```
 
@@ -45,6 +45,17 @@ python -m govern.run --session S-001 --task T-L01a --condition C1 --participant 
 
 The second form serves the same session over `http://127.0.0.1:8000`; the page reloads state from
 the event log, so an interrupted session can be resumed with `--resume`.
+
+One experiment, one table (the `experiments/` layer runs both conditions over the same task set):
+
+```powershell
+python -m experiments.run --config conditions.yaml --dry-run   # plan only, writes nothing
+python -m experiments.run --config conditions.yaml             # 12 sessions -> runs/E-SIM-01/
+python -m experiments.run --config conditions.yaml --resume    # only the cells that never ended
+```
+
+`metrics.json` is recomputed from the JSONL logs, not accumulated in memory, so deleting it and
+re-running `--resume` reproduces the same numbers.
 
 `pytest` is a **test-time** dependency only (installed into `.venv/`, not committed).
 If it is available: `python -m pytest -q`.
@@ -91,6 +102,10 @@ Two examples of reviewing and changing AI output, both caught by tests or by rea
   `tests/test_card.py::test_html_never_renders_a_pre_ticked_checkbox` keeps it that way.
 - The hidden-test runner called `pytest`, so `python -m unittest discover` failed on a bare
   Python install. `govern/hidden.py` now runs suites in a standard-library child interpreter.
+- The experiment layer's first tables looked like a finding ("escape rate 1.00, no over-trust")
+  until I read the logs: the operator is a script that ticks every box and accepts at once. The
+  README of `experiments/` now says plainly that those columns show the metrics can be computed,
+  not that governance works.
 
 ## AI assistance
 
@@ -110,8 +125,9 @@ by running the commands above, not by inspection alone.
 | `corpus/` | six seed legacy repositories, hidden suites, gold patches, impact labels |
 | `tools/` | generators: `make_repo.py` (corpus), `make_recordings.py` (replay), `make_storyboard.py` (screenshots), `scan_secrets.py` |
 | `static/` | `index.html`, the only UI file |
+| `experiments/` | the harness around the instrument: `spec.py` (condition file), `runner.py` (bounded parallelism, resume, failure isolation), `metrics.py` (recompute from logs), `run.py` (CLI), `conditions.yaml` |
 | `storyboards/` | three captured interaction frames and a frame-by-frame script |
-| `tests/` | 300 test cases across 15 modules |
+| `tests/` | 352 test cases across 19 modules |
 | `config/` | every threshold, seed, rule and model id — no magic numbers in code |
 | `docs/` | `SPEC.md`, `PLAN.md`, `PROVENANCE.md`, `rubric-mapping.md` |
 

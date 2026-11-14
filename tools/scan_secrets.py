@@ -23,6 +23,11 @@ SKIP_DIRS = {
     "__pycache__",
     "node_modules",
     "参考代码库",
+    # Session data and release artefacts are never committed (SPEC 4.6), and the
+    # per-session checkouts under runs/*/work are copies of corpus/ -- scanning
+    # them would only report the same files twice.
+    "runs",
+    "dist",
 }
 SKIP_SUFFIXES = {".docx", ".png", ".jpg", ".jpeg", ".zip", ".whl", ".pyc"}
 # These files *document* the rule and carry synthetic examples inside tests, so

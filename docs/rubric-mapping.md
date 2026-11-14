@@ -196,7 +196,7 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ## 2i. 开发溯源台账验收 → 证据（SPEC M11 四条，PLAN 里程碑 M10）
 
-验收命令：`python -m govern.provenance --check` → `ok: 20 rows, 11 modules covered (original=8, reused=3, assisted=9)`；`python -m govern.provenance --selftest` → `ok: 11 modules, 3 origins, assisted rows must carry decision + check`。
+验收命令：`python -m govern.provenance --check` → `ok: 21 rows, 11 modules covered (original=8, reused=3, assisted=10)`；`python -m govern.provenance --selftest` → `ok: 11 modules, 3 origins, assisted rows must carry decision + check`。
 
 台账本体是 `docs/PROVENANCE.md`（20 行，M1–M11 全覆盖）。**它是数据，不是叙述**：`govern/provenance.py:78` 的 `parse()` 只认表格行，行内格数不符直接报错（`LedgerError`），`check()`（`:118`）逐条判定。
 
@@ -231,7 +231,7 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | 3 | clone → `python -m govern.run --batch --schedule config/schedule.json` 出结果表 | `ok: batch P01 ran 6 of 6 slots in runs\R-DEMO`，六个 slot 各一行 | `test_3_one_command_reproduces_a_batch_without_network_or_key`（`:56`，断言 6 个 jsonl、首尾为 `session_start`/`session_end`、每条都过 `log.validate`） |
 | 4 | 零魔法数字：阈值只在 `config/config.json` | `tests/test_config_discipline.py` 用 `dataclasses.replace` 改五个参数，行为随之改变 | `test_the_card_statement_limit_comes_from_config`（`:43`）、`test_the_hidden_suite_timeout_comes_from_config`（`:52`）、`test_the_pair_tolerance_comes_from_config`（`:57`）、`test_the_simulation_alpha_comes_from_config`（`:66`）、`test_the_metric_thresholds_are_read_from_config`（`:75`）、`test_no_parameter_is_written_into_the_code`（`:93`） |
 | 5 | `python tools/scan_secrets.py` 零命中 | `ok: 0 finding(s) in 220 files` | `test_5_no_secret_or_endpoint_is_committed`（`:89`） |
-| 6 | `python -m govern.provenance --check` | `ok: 20 rows, 11 modules covered (original=8, reused=3, assisted=9)` | `test_6_the_provenance_ledger_checks_out`（`:94`） |
+| 6 | `python -m govern.provenance --check` | `ok: 21 rows, 11 modules covered (original=8, reused=3, assisted=10)` | `test_6_the_provenance_ledger_checks_out`（`:94`） |
 
 **冻结产物**：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（123 个条目，410,797 字节），`dist/SHA256SUMS` 记 `2f2ea5d269f260d03bd8b942b3cac8ec41383b6266e8824e94b5944b772590c4`。`--verify` 复核通过，且**同一棵树重建两次字节相同**（实测第二次构建 hash 与第一次完全一致）——否则"快照"标识的是构建机器，不是这份工作。归档排除规则由 `tools/make_release.py:34` 的 `SKIP_DIRS`/`SKIP_SUFFIXES`/`SKIP_NAMES`/`SKIP_PREFIXES` 定义，实测 123 个条目中不含 `runs/`、`_tools/`、`.venv/`、`参考代码库/`、`.pyc`、`.docx`、`DSH-`、`A2_API_KEY*`。
 
@@ -240,8 +240,45 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 - **第 3 条的结果里六个 slot 全是 `tests_pass=False`**：随附的模拟建议**故意**删掉 gold patch 的最后一个文件段（`test_every_shipped_suggestion_omits_at_least_one_consumer`，`tests/test_llm.py:405`），所以每个任务都留下逃逸缺陷。这条命令证明的是"管线能跑通并如实判负"，不是"治理组更好"——后者需要真人数据，本期是 `planned`（见 §6）。
 - `dist/` **不入库**（`.gitignore` 已加）。归档可重建且字节可复现，把 400 KB 二进制放进 Git 只会让"哪个才是提交版"变模糊；摘要写进 `README.md` 与 `docs/PLAN.md` 的 M11 行。
 - `app_version` 从 `0.0.0-draft` 升到 `1.0.0`，仅作为冻结标识，不代表功能变化；它会出现在每条日志事件的 `app_version` 字段里，便于区分"冻结前采集"与"冻结后采集"的数据。
-- 第 4 条里 `tau_review_ms` 与 `mech_dwell_ms` **没有行为消费者**（它们是 SPEC 5.2 的指标阈值：盲接受、机械确认），分析管线按 Q8 为 N/A，所以这两个参数只验证到"从 config 读出并如实报告"（`gate.threshold_summary()`）。这是覆盖缺口，`tests/test_config_discipline.py` 的模块 docstring 与 §6 都写明，不假装它等价于"阈值可调"。
+- 第 4 条里 `tau_review_ms` 与 `mech_dwell_ms` 在冻结时点**没有行为消费者**（它们是 SPEC 5.2 的指标阈值：盲接受、机械确认），分析管线按 Q8 为 N/A，所以那次只验证到"从 config 读出并如实报告"（`gate.threshold_summary()`）。**这条缺口在 §2k 的实验编排层已被补上**：`experiments/metrics.py:82`、`:99` 现在真的用这两个阈值判定盲接受与机械确认，`tests/test_experiments.py:181`、`:195` 有正反例。
 - 顺带修掉的真缺陷：`card._statement()` 在模板超长时回落到 `symbol (category)`，而回落后**可能仍超过 `card_item_max_chars`**（实测 24 字符上限下返回 53 字符）——SPEC M5 的上限形同虚设。现已硬截断加省略号，由 `test_the_card_statement_limit_comes_from_config` 钉住。
+
+---
+
+## 2k. 实验编排层 → 证据（`experiments/`，冻结后追加的一层）
+
+`govern/` 是仪器（一次一个会话），`experiments/` 是机架：读实验文件 → 展开成 cell → 有并发上限地跑 → 失败隔离 → 可续跑 → 从日志重算指标。它不直接碰模型，每个会话仍走 `govern.session`，所以日志 schema 与 SPEC 4.2 完全一致，没有第二套格式。
+
+| # | 需求 | 证据 | 覆盖测试 |
+|---|---|---|---|
+| 1 | 条件配置化，同一任务集跑两组 | `conditions.yaml`：`baseline→C0`、`governance→C1`；`experiments/spec.py` 的 `validate()`（`:276`）拒绝缺 `baseline`、拒绝 `C0/C1` 之外的码，`cells()`（`:241`）按"条件 × 参与者 × 任务 × 重复"展开且顺序确定 | `test_conditions_map_to_the_two_condition_codes`（`tests/test_experiments.py:64`）、`test_a_missing_baseline_is_rejected`（`:69`）、`test_an_unknown_condition_code_is_rejected`（`:75`）、`test_cells_cover_every_condition_and_task_once`（`:81`）、`test_cell_order_is_deterministic`（`:89`） |
+| 2 | 模型 / temperature / seed / 任务顺序全部记录 | `runner.write_manifest()`（`experiments/runner.py:108`）写 `model_id/model_temperature/seed/mode/task_order/n_cells`；`task_order` 是排程实际使用的顺序（按 `pairs` 列出的先后），不是隐含的 | `test_a_run_writes_the_snapshot_logs_and_metrics`（`tests/test_experiments.py:103`，断言 `model_id/model_temperature/seed/task_order` 四个键都在） |
+| 3 | `runs/<run_id>/` 含 config 快照、逐条 JSONL、`metrics.json` | `write_snapshot()`（`:91`）写实验文件 + 生效配置全量；`logs/<participant>/<session>.jsonl` 由 `govern/log.py` 写；`metrics.json` 由 `metrics.rebuild()` 从日志算出（`experiments/metrics.py:236`） | 同上；`test_metrics_are_recomputed_from_the_logs_on_disk`（`:139`，删掉 `metrics.json` 也能得到同一份 `conditions` 块） |
+| 4 | 断点续跑、并发上限、单条失败不中断 | 续跑判定只看"日志最后一条是不是 `session_end`"（`runner.is_done()` `:67`），崩溃在会话中途的 cell 会被重跑而不是记成完成；`ThreadPoolExecutor(max_workers=…)` 的上限来自 `concurrency.max_parallel`；失败写 `failures.jsonl`（cell/task/condition/error/message，fsync 落盘）后继续 | `test_resume_skips_sessions_that_already_ended`（`:117`）、`test_a_failing_cell_does_not_stop_the_batch`（`:126`，注入必失败的模拟器 → `n_failed == n_total` 且每行含 6 个键） |
+| 5 | `python -m experiments.run --config conditions.yaml --dry-run` 自检 | `experiments/run.py:69`：校验文件 → 解析任务集 → 打印计划 → 不写任何文件 | `test_dry_run_plans_without_writing`（`:212`，断言输出含 `dry run`/`sessions` 且 `tmp` 下没有 `.jsonl`） |
+| 6 | README 说明"一条命令复现一张结果表" | `experiments/README.md`：命令、实测表、目录结构、指标定义；实测输出见下 | `test_a_real_run_prints_a_table_and_writes_metrics`（`:224`） |
+
+**实测（`runs/E-SIM-01`，12 个会话，2 并发，1.5 s）**
+
+```
+$ python -m experiments.run --config conditions.yaml
+| condition | sessions | escape rate | mean debt Δ | OTI | mechanical |
+|---|---|---|---|---|---|
+| C0 | 6 | 1.00 | -3.67 | 0.00 | 0.00 |
+| C1 | 6 | 1.00 | -3.67 | 0.00 | 1.00 |
+
+ok: 12 ran, 0 skipped, 0 failed of 12 → runs\E-SIM-01
+$ python -m experiments.run --config conditions.yaml --resume
+ok: 0 ran, 12 skipped, 0 failed of 12 → runs\E-SIM-01      # 同一张表
+```
+
+**如实记录（这一层的边界）**
+
+- **表里的行为指标是退化的，别当结论读**：操作者是脚本，一次性勾满所有复选框、接受建议、从不打开解释。所以 `escape rate = 1.00` 来自"随附建议故意漏掉一个 consumer"（`tests/test_llm.py:405`），`OTI = 0.00` 来自 `review_dwell_ms` 恰好等于 `tau_review_ms`（盲接受要求严格小于）。这两列证明的是"指标能从日志算出来"，不是"治理有效"。要让人读得懂的数字，必须有真人操作者（`--port`，仍是 `planned`）。
+- `C0` 的 `mechanical = 0.00` 是口径的结果而非发现：C0 无卡、无勾选，`confirmations` 计到 6 次但没有任何 `dwell_ms`，所以按 SPEC 5.2 的"中位数 < 阈值"判定不成立。
+- **YAML 是子集不是全量**：只支持嵌套映射、块/行内列表、注释、引号、`int/float/bool/null`；Tab 缩进、锚点、多行字符串一律报 `SpecError`（`test_a_tab_indent_is_rejected_rather_than_guessed`，`tests/test_experiments.py:48`）。引入 PyYAML 会违反 AGENTS §1 的零依赖；JSON 可直接读（`test_json_is_accepted_directly`）。
+- 参数不重复定义：`conditions.yaml` 只描述结构，`model_id/temperature/seed/阈值` 仍只在 `config/config.json`（AGENTS §2.4）。代价是"实验文件本身不自足"，要看参数必须打开快照。
+- 这一层让 `tau_review_ms` 与 `mech_dwell_ms` **第一次有了消费者**（`experiments/metrics.py:82`、`:99`）。§6 里原先"这两个参数没有行为消费者"的说法因此更新：它们仍不影响生成行为，但已参与指标计算，并有正反例测试。
 
 ---
 
@@ -249,9 +286,13 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
 |---|---|---|---|
-| `govern/provenance.py` | 新增（M10 = SPEC M11） | `MODULES` `:41`、`ORIGINS` `:44`、`Row` `:53`、`_filled()` `:64`、`parse()` `:78`、`_source_exists()` `:104`、`check()` `:118`、`summarise()` `:158`、`report()` `:171`、`_selftest()` `:186`、`main()` `:243` | `tests/test_provenance.py`（23 条：解析 6、规则 12、CLI 4、自检 1）；`python -m govern.provenance --check` → `ok: 20 rows, 11 modules covered (original=8, reused=3, assisted=9)` |
+| `govern/provenance.py` | 新增（M10 = SPEC M11） | `MODULES` `:41`、`ORIGINS` `:44`、`Row` `:53`、`_filled()` `:64`、`parse()` `:78`、`_source_exists()` `:104`、`check()` `:118`、`summarise()` `:158`、`report()` `:171`、`_selftest()` `:186`、`main()` `:243` | `tests/test_provenance.py`（23 条：解析 6、规则 12、CLI 4、自检 1）；`python -m govern.provenance --check` → `ok: 21 rows, 11 modules covered (original=8, reused=3, assisted=10)` |
 | `docs/PROVENANCE.md` | 交付物（M10） | 20 行台账，M1–M11 全覆盖；`assisted` 行带 decision + check，`reused` 行指向 `参考代码库/` 的真实路径 | `test_the_shipped_ledger_passes`（`tests/test_provenance.py:105`）、`test_the_shipped_ledger_covers_every_module`（`:109`） |
 | `tools/make_release.py` | 新增（M11） | `version()` `:48`、`_skip()` `:55`、`payload()` `:70`、`archive_name()` `:84`、`build()` `:88`、`sha256_of()` `:103`、`write_manifest()` `:111`、`verify()` `:118`、`_selftest()` `:143`、`main()` `:164`；排除规则 `SKIP_DIRS` `:34`、`SKIP_SUFFIXES` `:39`、`SKIP_NAMES` `:40`、`SKIP_PREFIXES` `:43` | `tests/test_release.py`（13 条：归档 5、清单 4、CLI 4）；`python tools/make_release.py --selftest` → `ok: 123 files, 15 directory rules, 9 file rules, tree digest 2db36961aa65`；`--build` → `ok: a2-1.0.0.zip sha256:2f2ea5d2…`，`--verify` → `ok: SHA256SUMS matches the archive` |
+| `experiments/spec.py` | 新增（冻结后追加） | `parse_yaml()` `:46`（YAML 子集，JSON 直读）、`load()` `:265`、`validate()` `:276`、`load_tasks()` `:333`、`Spec.cells()` `:241`、`Spec.task_order()` `:225` | `tests/test_experiments.py`（24 条：YAML 6、spec 6、runner 4、metrics 5、CLI 3）；`python -m experiments.run --config conditions.yaml --dry-run` → `ok: 2 conditions × 6 tasks … = 12 sessions (concurrency 2)` |
+| `experiments/runner.py` | 新增（冻结后追加） | `plan()` `:52`、`is_done()` `:67`、`write_snapshot()` `:91`、`write_manifest()` `:108`、`execute()` `:170` | `test_a_run_writes_the_snapshot_logs_and_metrics`、`test_resume_skips_sessions_that_already_ended`、`test_a_failing_cell_does_not_stop_the_batch` |
+| `experiments/metrics.py` | 新增（冻结后追加） | `read_session()` `:40`、`collect()` `:66`、`blind_accepts()` `:82`、`confirmations()` `:99`、`summarise()` `:196`、`rebuild()` `:236`、`write()` `:246` | `tests/test_experiments.py` 的 MetricsTests（5 条：逃逸率、OTI、解释打开后不盲、机械确认、配对行） |
+| `experiments/run.py` + `conditions.yaml` | 新增（冻结后追加） | CLI `main()` `:69`；实验文件定义 `baseline→C0`/`governance→C1`、`pairs`、`repetitions`、`concurrency.max_parallel` | `tests/test_experiments.py` 的 CliTests（3 条） |
 | `govern/session.py` | 新增（M8 = SPEC M2） | `load_schedule()` `:68`；`assign()` `:83`；`chi_square_p()` `:114`；`simulate()` `:126`；`rebuild_state()` `:165`；`Session` `:216`（`start/submit_prompt/toggle/confirm/generate/act/end/state/checkpoint/resume`）；`_selftest()` `:576` | `tests/test_session.py`（37 条：分配 9、模拟 7、同意 3、流程 11、续跑 4）；`python -m govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000` |
 | `govern/run.py` | 重写（M8） | `log_for()` `:31`；`_rehearse()` `:87`；`selftest()` `:139`；`single()` `:165`；`batch()` `:202`；`resume()` `:242`；`simulate()` `:266`；`main()` `:315` | `tests/test_run.py`（9 条：自检/演练 2、模拟 1、单会话 3、批处理 2）；`python -m govern.run --selftest` → `ok: 6 tasks, 6 cards` |
 | `config/schedule.json` | 新增（M8） | `schedule_id: SCH-01`、`seed: 42`、三对、`P01`–`P10`、`orders` AB/BA 交替 | `test_the_shipped_schedule_covers_every_pair`（`tests/test_session.py:64`）、`test_task_index_is_sequential_from_zero`（`:80`） |
@@ -351,13 +392,19 @@ python tools\make_release.py --build        # dist/a2-<version>.zip + SHA256SUMS
 python tools\make_release.py --verify       # 复核摘要
 python tools\make_release.py --selftest     # 核对排除规则
 .\.venv\Scripts\python.exe -m pytest tests\test_end_to_end.py tests\test_config_discipline.py tests\test_release.py -q
+
+# 实验编排（冻结后追加）：一条命令出一张表，一条命令验证不落盘
+.\.venv\Scripts\python.exe -m experiments.run --config conditions.yaml --dry-run
+.\.venv\Scripts\python.exe -m experiments.run --config conditions.yaml
+.\.venv\Scripts\python.exe -m experiments.run --config conditions.yaml --resume   # 续跑：只剩没跑完的 cell
+.\.venv\Scripts\python.exe -m pytest tests\test_experiments.py
 ```
 
 > 说明：`.venv/` 只是本机开发工具链（pytest 属**测试期**依赖，不进入运行时）；
 > 交付代码在 `govern/` 与 `tools/` 内，只用标准库。隐藏测试套件自 M7 起由
 > `govern/hidden.py` 用标准库在子解释器里跑（不再需要 pytest），所以
 > `python -m govern.corpus --check` 与 `python -m govern.score --selftest`
-> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（328 条）。
+> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（352 条）。
 
 ---
 
@@ -417,7 +464,10 @@ python tools\make_release.py --selftest     # 核对排除规则
 | `tools/make_release.py` 需要 `sys.path` 引导（M11） | 以 `python tools\make_release.py` 运行时 `sys.path[0]` 是 `tools/`，`from govern import config` 直接 `ModuleNotFoundError`（实测），与 `make_repo.py`/`make_recordings.py` 的写法一致才能跑通 | 模块顶部 `sys.path.insert(0, str(ROOT))`，与既有两个工具同款 |
 | `--batch` 必须给 `--participant`（M11） | 批量会话按被试逐个分配 slot，没有被试就没有可分配的 schedule 行；给默认值会静默造出一个"P01"的假被试 | 缺参数 → `EXIT_USAGE`；`test_3_one_command_reproduces_a_batch_without_network_or_key`（`tests/test_end_to_end.py:56`）以显式 `--participant P01` 调用 |
 | `app_version` 由 `0.0.0-draft` 升到 `1.0.0`（M11） | M11 是冻结里程碑，`app_version` 会写进每条日志事件的信封；冻结前采集的数据必须能与冻结后区分开 | 仅改 `config/config.json` 一个值；归档名随之变为 `a2-1.0.0.zip`，测试全部读 `CONFIG.app_version` 故不受影响 |
-| `dist/` 加入 `.gitignore`（M11） | 归档可重建且字节可复现（实测两次构建同 hash），把 400 KB 二进制放进 Git 只会让"哪个才是提交版"变模糊 | 摘要写进 `README.md` 与 `docs/PLAN.md` 的 M11 行；评审者用 `make_release --build/--verify` 自行重建 |
+| `dist/` 加入 `.gitignore`（M11） | 归档可重建且字节可复现（实测两次构建同 hash），把 400 KB 二进制放进 Git 只会让"哪个才是提交版"变模糊 | 摘要写进 `README.md` 与 `docs/PLAN.md` 的 M11 行；评审者用 `make_release --build/--verify` 自重建 |
+| `govern.run` 新增公开别名 `rehearse()` / `close_session()`（experiments 层） | 编排层需要"跑完一次会话并收尾"，而原实现只有下划线私有的 `_rehearse()` / `_close()`；让 `experiments/runner.py` 去碰私有名会破坏 AGENTS §3 的模块边界 | 两个别名只是转发，签名与行为不变；`_private` 仍被 `batch()`/`single()` 使用，`tests/test_run.py` 未受影响 |
+| `scan_secrets.SKIP_DIRS` 增加 `runs` 与 `dist`（experiments 层） | 会话快照的 `work/` 是语料副本，跑过一次实验后扫描文件数从 137 涨到 317，且 `runs/` 本就 `.gitignore`（AGENTS §4） | 扫描器只扫会被提交的东西；实测回到 `ok: 0 finding(s) in 137 files`，注释里写明这两个目录为何跳过 |
+| `experiments.run` 多给一个 `--limit N`（experiments 层） | 调试时只想跑前几个 cell；不给就只能改实验文件，那会污染"实验定义"这一层 | 只影响调度数量，不写进 `metrics.json`；`--resume` 与它并存时先按已完成跳过再截断 |
 
 ---
 
@@ -443,4 +493,4 @@ python tools\make_release.py --selftest     # 核对排除规则
   - 因此台账里的 `check` 列一律写成**可复跑的命令或具名测试**，不写"已审阅"这类无法验证的措辞；`original` 也不用来夸功——它只在"这是作者的裁定/红线"时使用。
   - `P-019`、`P-020` 两行的 `commit` 列由紧随其后的一次文档提交补齐（台账无法在自己的提交里引用自己的 hash）。
 - **全链路冻结（M11）已完成，但"完成"指六条可跑的定义**（`docs/PLAN.md:13-20`），不含"有人类数据"：`--batch` 的六个 slot 全部 `tests_pass=False`，因为随附的模拟建议**故意**漏掉 gold patch 的最后一个文件段（`test_every_shipped_suggestion_omits_at_least_one_consumer`）。这条命令证明管线能跑通并如实判负，**不是**处理效应；不要把它写成"治理组提升了 X%"。
-- `tau_review_ms` 与 `mech_dwell_ms` 在代码里**没有行为消费者**：它们是 SPEC 5.2 的指标阈值（盲接受、机械确认），而按 Q8 分析管线是 **N/A**。第 4 条完成定义对这两个参数只验证到"从 config 读出并如实报告"（`gate.threshold_summary()`），不等价于"阈值可调"。要真正用到它们，必须先落地 `analysis/`。
+- `analysis/`（SPEC M10）仍是 **N/A**，但**指标重算这条链路在冻结后补上了一半**：`experiments/metrics.py` 从 `runs/<run_id>/logs/` 重算 `escape rate`/`OTI`/`mechanical share`/`debt Δ` 并写 `metrics.json`，因此 `tau_review_ms` 与 `mech_dwell_ms` **已有真正的消费者**（§2k）。仍未做的是"删数据后报告哪些结论失效"（`purge` 的后半句）与任何统计检验——`statistics`/绘图仍属 `planned`。

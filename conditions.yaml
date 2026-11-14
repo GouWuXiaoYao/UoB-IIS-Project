@@ -1,0 +1,31 @@
+# Experiment plan for the governance study.
+#
+# This file describes the *structure* of a run: which conditions, which tasks,
+# which participants, how many repetitions, how much concurrency. It deliberately
+# does not repeat the model, temperature, seed or thresholds — those live in
+# config/config.json (AGENTS §2.4: one home for every parameter), and each run
+# snapshots them into runs/<run_id>/ so the numbers stay traceable.
+#
+# Format: a YAML subset (nested mappings, block or inline lists, comments).
+# JSON is accepted too, if you prefer it.
+version: 1
+run_id: E-SIM-01
+
+participants:
+  - P01
+
+conditions:
+  baseline:
+    condition: C0      # no assessment card, generation not gated
+  governance:
+    condition: C1      # full impact set on the card, every item must be confirmed
+
+pairs:
+  - PAIR-01
+  - PAIR-02
+  - PAIR-03
+
+repetitions: 1
+
+concurrency:
+  max_parallel: 2
