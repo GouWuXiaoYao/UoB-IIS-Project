@@ -5,27 +5,33 @@ given by [docs/PLAN.md](docs/PLAN.md). The grading evidence trail lives in
 [docs/rubric-mapping.md](docs/rubric-mapping.md), and the development record in
 [docs/PROVENANCE.md](docs/PROVENANCE.md).
 
-**Status:** milestones M0–M10 are implemented and verified; M11 (end-to-end freeze and release
-snapshot) is the only one left. Milestone numbers in `PLAN.md` are not module numbers in
-`SPEC.md`; the mapping is in `PLAN.md` §1.
+**Status:** every milestone is done. M0–M10 built and verified the system; M11 froze it and added
+the release snapshot; M12 added the `experiments/` harness; M13 added the `analysis/` layer.
+Milestone numbers in `PLAN.md` are not module numbers in `SPEC.md`; the mapping is in `PLAN.md` §1.
 
 What is **implemented**: the seed corpus, the AST impact analyser, the assessment card, the
 mandatory confirmation gate, the replay LLM client, the six-rule outcome scorer, the telemetry
-logger, the session orchestrator with deterministic assignment, the local web UI, and the
-provenance checker. What is **simulated**: model output, which is served from recordings whose
-`source` field says `sim` — no external API is called and no key is needed. What is **planned**:
-the analysis pipeline (`SPEC` M9) and the human study (Q1/Q2 — designed, never run).
+logger, the session orchestrator with deterministic assignment, the local web UI, the provenance
+checker, the `experiments/` harness and the `analysis/` layer (one workbook, four figures, paste-ready
+captions). What is **simulated**: model output, which is served from recordings whose `source` field
+says `sim` — no external API is called and no key is needed. What is **planned**: the human study
+(Q1/Q2 — designed, never run) and the inferential claims that would come with it. The `analysis/`
+code exists and runs, but `SPEC` M9 is still labelled `PLAN`: the pipeline is not shipped as the
+primary evidence, and every test it prints is a null result by construction.
 **No human data has been collected.** Every session in this repository was run by the author.
 
-Prose word count of this README: **1185 words**, counted by `python tools/word_count.py` with this rule:
+Prose word count of this README: **1228 words**, counted by `python tools/word_count.py` with this rule:
 blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
 (headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
-says 889, so the earlier figure was wrong rather than counted differently. `python tools/word_count.py
+said 889 at that point and says 1228 now, so the earlier figure was wrong rather than counted
+differently. `python tools/word_count.py
 --check` fails whenever the stated number and the text disagree, and the check is itself a test.
 
 ## How to run
 
 Only the standard library is needed at runtime (Python 3.11+; verified on 3.15.0).
+
+Each line below is abbreviated to its first clauses; the text after `#` is not the verbatim output.
 
 ```powershell
 python -m govern.run --selftest            # ok: 6 tasks, 6 cards
@@ -121,24 +127,19 @@ Two identifiers, because neither alone is enough here:
 
    The archive is reproducible: a second build of the same tree hashes identically, so the digest
    identifies the work rather than the machine that packed it. `dist/` is not committed; rebuild it.
-   This file therefore does not quote a digest for "now" — it would go stale the moment this line
-   changes the tree. Quoted digests are historical: `2f2ea5d2…` is the 123-file tree frozen at M11,
-   `b2fbc378…` the 131-file tree once `experiments/` was added. For the commit you are reading, run
-   `--build` and use the digest it prints.
+   A digest therefore always belongs to a named commit, never to "the directory as it is now": the
+   line that records one is inside the tree it describes, so it goes stale as soon as it lands.
+   Quoted digests are historical: `2f2ea5d2…` is the 123-file tree frozen at M11, `b2fbc378…` the
+   131-file tree once `experiments/` was added, and `07651cd4…` the 161-entry tree at `d616cd9`.
+   The report is **not** inside the archive: `tools/make_release.py` skips `.docx` on purpose, so
+   `docs/A2_Report_3138100.docx` travels as its own submitted file.
 
    The archive is defined by an allowlist (`PAYLOAD_DIRS` and `PAYLOAD_FILES` in
    `tools/make_release.py`), so a new top-level directory has to be added there to ship. That is
    deliberate: walking the whole tree once pulled a stray temporary file into the archive, and an
-   unreadable one made the build fail outright.
-
-   The `govern/` system was frozen at `00fdf92` (123 files,
-   `sha256:2f2ea5d2…`). Later commits add `experiments/`, `analysis/`, the report, a fourth
-   storyboard frame, the system diagram and the one-command reproducer, so the archive of the
-   tree you are reading is larger: at commit `d616cd9` it is 161 entries, 696,791 bytes,
-   `sha256:07651cd4…`. A line that records a hash is itself part of the tree it describes, so
-   rebuilding after that line lands changes the hash: `git checkout d616cd9` and build to get
-   the number quoted here, and note that rebuilding any earlier commit reproduces that
-   commit's hash.
+   unreadable one made the build fail outright. To check a quoted digest, export that commit and
+   build it: `git archive d616cd9` then `python tools/make_release.py --build` reproduces
+   `07651cd4…`, which is what the audit did rather than trusting the number.
 
 ## Development record
 
@@ -147,7 +148,7 @@ Significant changes, why they were made and what checked them are recorded in th
 `origin = original | reused | assisted`, the decision and the check), and
 `docs/rubric-mapping.md` (each acceptance test mapped to a named test case).
 
-Two examples of reviewing and changing AI output, both caught by tests or by reading the result:
+Three examples of reviewing and changing AI output, each caught by a test or by reading the result:
 
 - The card first rendered every checkbox as `checked disabled`, which reproduces the "mechanical
   confirmation" failure the literature warns about. It is now never pre-ticked, and
@@ -175,7 +176,7 @@ by running the commands above, not by inspection alone.
 |---|---|
 | `govern/` | the system under test: config, tasks, run, patch, corpus, impact, card, gate, llm, log, score, hidden, session, web, provenance |
 | `corpus/` | six seed legacy repositories, hidden suites, gold patches, impact labels |
-| `tools/` | generators: `make_repo.py` (corpus), `make_recordings.py` (replay), `make_storyboard.py` (screenshots), `scan_secrets.py` |
+| `tools/` | generators and checks: `make_repo.py` (corpus), `make_recordings.py` (replay), `make_storyboard.py` (screenshots), `make_diagram.py` (architecture figure), `make_report.py` (the report), `make_release.py` (archive + `SHA256SUMS`), `word_count.py` (word counts), `scan_secrets.py` (secret scan), `reproduce.ps1` (one command) |
 | `static/` | `index.html`, the only UI file |
 | `experiments/` | the harness around the instrument: `spec.py` (condition file), `runner.py` (bounded parallelism, resume, failure isolation), `metrics.py` (recompute from logs), `run.py` (CLI), `conditions.yaml` |
 | `analysis/` | the statistics on top of the logs: `load.py`, `checks.py`, `stats.py`, `report.py`, plus hand-written `xlsx.py` and `png.py` (no third-party packages) |

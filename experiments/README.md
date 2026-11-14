@@ -34,7 +34,8 @@ explanation. So `escape rate = 1.00` and `OTI = 0.00` are properties of the scri
 plus a shipped suggestion that deliberately omits one consumer file — not
 findings about governance. What the table does prove is that the pipeline
 computes each metric from logs and keeps the two conditions comparable. Anything
-about people needs a human operator (`--port`, still `planned`).
+about people needs a human operator: the web UI exists and is driven over HTTP
+(`--port`), but every session in this repository was driven by a script.
 
 ## The experiment file
 
