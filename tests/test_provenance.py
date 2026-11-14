@@ -45,7 +45,7 @@ def _three_origin_ledger(*extra: str, modules: tuple[str, ...] = ("M1", "M4", "M
     """A ledger that satisfies every rule, so a test can break exactly one."""
     rows = [
         _row("P-001", modules[0], "original"),
-        _row("P-002", modules[1], "reused", source="参考代码库/index.html"),
+        _row("P-002", modules[1], "reused", source="README.md"),
         _row("P-003", modules[2], "assisted"),
         _row("P-004", modules[3], "original"),
         _row("P-005", modules[4], "original"),
@@ -112,9 +112,30 @@ class CheckTests(unittest.TestCase):
         for module in provenance.MODULES:
             self.assertIn(module, covered, f"{module} has no provenance row")
 
+    def test_an_external_source_is_allowed_when_the_decision_says_why(self):
+        text = _three_origin_ledger(
+            _row("P-030", "M8", "reused", source="external:参考代码库/tools.py",
+                 decision="course lab material, deliberately not redistributed")
+        )
+        self.assertEqual(self._problems(text), [])
+
+    def test_an_external_source_without_a_decision_is_reported(self):
+        text = _three_origin_ledger(
+            _row("P-031", "M8", "reused", source="external:参考代码库/tools.py", decision="")
+        )
+        problems = self._problems(text)
+        self.assertTrue(any("P-031" in p and "external" in p for p in problems), problems)
+
+    def test_a_missing_reused_source_is_still_reported(self):
+        text = _three_origin_ledger(
+            _row("P-032", "M8", "reused", source="govern/does-not-exist.py")
+        )
+        problems = self._problems(text)
+        self.assertTrue(any("P-032" in p and "does not exist" in p for p in problems), problems)
+
     def test_a_missing_must_module_is_reported(self):
         rows = [_row(f"R-{n:03d}", module, "original") for n, module in enumerate(provenance.MODULES, 1) if module != "M7"]
-        rows.append(_row("P-900", "M1", "reused", source="参考代码库/index.html"))
+        rows.append(_row("P-900", "M1", "reused", source="README.md"))
         rows.append(_row("P-901", "M1", "assisted"))
         problems = self._problems(_table(*rows))
         self.assertTrue(any("M7" in problem for problem in problems), problems)
@@ -139,13 +160,14 @@ class CheckTests(unittest.TestCase):
 
     def test_a_reused_row_pointing_at_a_missing_path_is_reported(self):
         text = _three_origin_ledger(
-            _row("P-012", "M5", "reused", source="参考代码库/does_not_exist.py")
+            _row("P-012", "M5", "reused", source="docs/does_not_exist.py")
         )
         problems = self._problems(text)
         self.assertTrue(any("P-012" in problem for problem in problems), problems)
 
     def test_a_reused_row_may_point_at_a_directory(self):
-        text = _three_origin_ledger(_row("P-013", "M5", "reused", source="参考代码库"))
+        # A directory that every checkout has; 参考代码库/ is deliberately not tracked.
+        text = _three_origin_ledger(_row("P-013", "M5", "reused", source="docs"))
         self.assertEqual(self._problems(text), [])
 
     def test_an_unknown_origin_is_reported(self):

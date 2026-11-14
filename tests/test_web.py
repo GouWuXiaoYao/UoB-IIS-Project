@@ -87,7 +87,8 @@ class _Served:
         try:
             status, text = self.raw(method, path, body)
         except urllib.error.HTTPError as exc:
-            return exc.code, json.loads(exc.read().decode("utf-8"))
+            with exc:
+                return exc.code, json.loads(exc.read().decode("utf-8"))
         raise AssertionError(f"expected a refusal, got HTTP {status} for {path}")
 
 

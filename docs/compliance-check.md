@@ -212,6 +212,16 @@ python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis
 
 `--batch --participant P01` 每个 pair 只给一个条件，6 条会话全部 unpaired。此前它会打印空表并 `exit 0`，看起来像"跑完了没差异"。**本次检查中已修**（见第 6 节）。
 
+### 5.4 一条命令（P2 已补）
+
+`tools/reproduce.ps1` 把 5.1 的三条命令与 AGENTS §5 的四项自检串起来，任一步非零即停：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
+```
+
+在 `git archive` 导出的干净树上实测：成功路径 `ok: 6 of 6 steps passed`（exit 0，12 份 JSONL、`results.xlsx`、4 张 PNG、6 份转录、`reproduce.json` 全部落在 `_repro/<时间戳>/`）；把 `config/config.json` 改成非法 JSON 后 `FAILED at step 1: self-check: standard-library test suite`（exit 1，后续步骤不跑）；同一 `-OutDir` 重跑与 `-OutDir ...\runs\x` 都被拒绝（exit 2）。**补这个脚本时暴露了三处真问题**（见第 6 节第 6–8 条）。
+
 ---
 
 ## 6. 本次检查中已顺手修掉的
@@ -223,6 +233,9 @@ python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis
 | 3 | `tools/make_storyboard.py` 带 UTF-8 BOM，`compile()` 报 `SyntaxError: invalid non-printable character U+FEFF` | 去掉 BOM；新增测试防再犯 | `tests/test_dependencies.py::SourceEncodingTests` |
 | 4 | "零第三方运行时依赖"只是声明，没有测试 | 新增 `tests/test_dependencies.py`：按 AST 扫 `govern/`、`analysis/`、`experiments/`、`tools/` 的 import，只允许标准库与本地包；断言不存在 `requirements.txt` | 9 条测试全绿 |
 | 5 | 测试期依赖未锁定 | 新增 `requirements-dev.txt`，`pytest==9.2.0` 精确固定，并附本机 pip 不可用时的绕行说明 | 同上 `DevRequirementsTests` |
+| 6 | `govern/config.py` 的 `DEFAULT_PATH` 是**相对路径**，配置随当前目录走：在干净树里跑却读到工作区的 `config/config.json`，于是"破坏配置必定失败"的验证一开始根本没生效 | 改为 `Path(__file__).resolve().parent.parent / "config" / "config.json"`；`tools/reproduce.ps1` 每步 `Push-Location $Root` | 破坏树内配置后 `FAILED at step 1`；`python -m unittest discover` 仍 `OK` |
+| 7 | `govern.provenance --check` 要求 `reused` 来源在磁盘上存在，而 `参考代码库/` 被 `.gitignore` 排除 ⇒ **干净检出上这条自检必红**（4 条测试连带红） | 新增 `external:` 前缀：显式标注"工作区外来源"，且该前缀行**必须**填 `decision`，否则报错 | `tests/test_provenance.py` 新增 3 条；干净树 `ok: 29 rows` |
+| 8 | `tests/test_provenance.py` 的夹具指向 `参考代码库`（干净检出里不存在）⇒ 测试只能在本人机器上过 | 夹具改用 `docs/` 与 `docs/does_not_exist.py` | 干净树 442 条测试全绿 |
 
 ---
 
@@ -235,7 +248,7 @@ python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis
 | **P1** | System diagram（一图） | 评分说明点名要；Architecture 项靠它拿 Convincingly | 盒子+箭头+短标签；虚线=simulated，灰=planned |
 | ~~P1~~ **已完成** | 补第 4 张 storyboard：拒绝建议 / 中途放弃 | 评分说明要"feedback **or control**"；控制面目前没图 | 已做：`storyboards/4-c1-reject.png` + `4-c1-reject.promises.txt`（`suggestion_action(action=reject)`，工作树逐字节不变） |
 | ~~P2~~ **已完成** | `device` 改枚举；报告写"不保存伪名映射" | 4.3 的两条硬化；转真人研究前必须做 | 已做：`config.device_kinds` + `log.validate()` 拒绝列表外取值；SPEC 4.6 明写"从未建立伪名与真实身份的映射表" |
-| **P2** | `tools/reproduce.ps1`：把 5.1 的三条命令 + 四项自检合成一条 | "一条命令复现"目前是三条 | 一条命令打印全部 `ok:` |
+| ~~P2~~ **已完成** | `tools/reproduce.ps1`：把 5.1 的三条命令 + 四项自检合成一条 | "一条命令复现"目前是三条 | 已做：`powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1` → `ok: 6 of 6 steps passed`；失败在第 N 步即停并打印步骤名与退出码；拒绝已存在的 `-OutDir`、拒绝写入 `runs/` 或 `analysis/` |
 | **P3** | dev 依赖加 hash（`--require-hashes`）或 vendor 轮子 | 目前只固定 pytest 主版本，传递依赖未固定 | `pip install --require-hashes -r requirements-dev.txt` |
 
 ---

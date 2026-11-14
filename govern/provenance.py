@@ -35,6 +35,10 @@ MODULES = (
     "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10", "M11",
 )
 ORIGINS = ("original", "reused", "assisted")
+# A reused row may name material the project does not redistribute (course lab folders,
+# which are gitignored). Those rows say so explicitly instead of pointing at a path that a
+# fresh clone cannot contain.
+EXTERNAL_PREFIX = "external:"
 FIELDS = ("item_id", "module", "origin", "source", "decision", "check", "commit")
 
 EXIT_OK = 0
@@ -115,6 +119,11 @@ def _source_exists(source: str, root: Path) -> bool:
     candidate = source.split("`")[0].strip()
     if not candidate:
         return False
+    if candidate.startswith(EXTERNAL_PREFIX):
+        # Material the project deliberately does not redistribute (course-provided lab
+        # folders). There is nothing in a fresh clone to point at, so the row carries its
+        # justification in the decision column instead -- see check().
+        return True
     return (root / candidate).exists()
 
 
@@ -160,6 +169,11 @@ def check(rows: Iterable[Row], root: Path = ROOT) -> list[str]:
                 problems.append(f"{row.item_id}: reused work needs a source")
             elif not _source_exists(row.source, root):
                 problems.append(f"{row.item_id}: reused source '{row.source}' does not exist in the workspace")
+            elif row.source.strip().startswith(EXTERNAL_PREFIX) and not row.has_decision:
+                problems.append(
+                    f"{row.item_id}: reused external material needs a decision saying why it is "
+                    "not redistributed (otherwise 'external:' is a way to skip the check)"
+                )
     return problems
 
 

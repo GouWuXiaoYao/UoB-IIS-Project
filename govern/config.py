@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, fields
 from pathlib import Path
 
-DEFAULT_PATH = Path("config") / "config.json"
+DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config" / "config.json"
 APP_VERSION_FILE = "app_version.txt"
 
 # A device kind is a slug, never a free-text label: lower case, digits and hyphens.

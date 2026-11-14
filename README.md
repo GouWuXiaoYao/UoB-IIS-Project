@@ -17,7 +17,7 @@ provenance checker. What is **simulated**: model output, which is served from re
 the analysis pipeline (`SPEC` M9) and the human study (Q1/Q2 — designed, never run).
 **No human data has been collected.** Every session in this repository was run by the author.
 
-Prose word count of this README: **946 words**, counted by `python tools/word_count.py` with this rule:
+Prose word count of this README: **1122 words**, counted by `python tools/word_count.py` with this rule:
 blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
 (headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
 says 889, so the earlier figure was wrong rather than counted differently. `python tools/word_count.py
@@ -70,6 +70,29 @@ python -m analysis.run --selftest                                     # statisti
 
 `pytest` is a **test-time** dependency only (installed into `.venv/`, not committed).
 If it is available: `python -m pytest -q`.
+
+## One command, from a clean checkout
+
+`tools/reproduce.ps1` runs the four pre-submit self-checks and the two reproduction steps in order,
+and stops at the first non-zero exit:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
+```
+
+The execution policy is bypassed because the script is not signed; this is the same reason a plain
+`& .\tools\reproduce.ps1` may be refused on a default Windows install.
+
+It writes only under `_repro/<UTC timestamp>/`: `runs/` (twelve session logs), `analysis/`
+(`results.xlsx`, four figures, `captions.md`), one transcript per step in `logs/`, and
+`reproduce.json` (step name, command, exit code, seconds, transcript path). It never writes to the
+repository's own `runs/` or `analysis/`, never deletes anything, and **refuses an existing `-OutDir`**
+rather than overwriting it — there is no `-Force`. Pointing `-OutDir` inside `runs/` or `analysis/`
+is refused too. The experiment configuration is used exactly as committed: this script does not
+change the conditions, the task set or the number of repetitions.
+
+Only a full run prints `ok: 6 of 6 steps passed`. A failure prints `FAILED at step N: <name>`, the
+exit code and the transcript path, then exits with that code.
 
 ## Technology stack
 
