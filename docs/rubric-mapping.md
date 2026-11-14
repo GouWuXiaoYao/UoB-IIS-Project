@@ -90,6 +90,25 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ---
 
+## 2d. 遥测日志器验收 → 证据（SPEC M7 七条，PLAN 里程碑 M5）
+
+验收命令：`python -m govern.log --selftest` → `ok: 16 event types, seq from 1, atomic append, purge clean`。
+
+| # | 验收标准 | 证据 | 覆盖测试 |
+|---|---|---|---|
+| M7-1 | 每行合法 JSON 且过 schema；校验失败**拒绝写入并抛出**，不静默丢弃、不写半行 | `validate()`（`govern/log.py:260`）返回错误清单；`emit()`（`:380`）在 `:405` 调用它，`SchemaError`（`:220`）在写盘**之前**抛出 | `test_unknown_event_type_is_rejected`（`tests/test_log.py:176`）、`test_missing_private_field_is_rejected`（`:182`）、`test_wrong_type_is_rejected`（`:190`）、`test_invalid_enum_value_is_rejected`（`:224`）、`test_unknown_field_is_rejected_unless_prefixed`（`:217`）、`test_nothing_written_when_a_body_field_is_refused`（`:255`） |
+| M7-2 | `(session_id, seq)` 唯一且严格递增；`ts` 带时区偏移且会话内不倒退 | `_repair_and_count()`（`:356`）从最后一条完整行续号；`_stamp()` 保证毫秒级单调（同毫秒内 +1 ms） | `test_first_line_has_seq_one_and_a_uuid`（`:111`）、`test_seq_increases_by_one`（`:121`）、`test_ts_has_milliseconds_and_an_offset`（`:129`）、`test_timestamps_never_go_backwards`（`:137`） |
+| M7-3 | 无 PII：正则扫描不得出现姓名/邮箱/学号样式，**测试含正例与反例** | `scan_pii()`（`:447`）扫每一行里的每个字符串（含嵌套），扫描前先剥掉 UUID 与 ≥32 位十六进制块，避免把 `event_id` 里的 8 位数字段误报 | 反例：`test_a_real_log_scans_clean`（`:377`，把 16 类事件全写一遍后零命中）；正例：`test_identifiers_are_found_in_a_synthetic_file`（`:384`，邮箱/学号/姓名三行各被抓到）、`test_scan_catches_a_nested_value`（`:397`） |
+| M7-4 | 原子性：写一行中途被杀，最后一行要么完整要么不存在 | 单次 `os.open(O_APPEND)` + 一次 `os.write` + `fsync`（`:414-419`，不留 `.tmp` 中转文件）；重开时 `_repair_and_count()`（`:356`）把撕裂的尾段截掉 | `test_a_torn_last_line_is_repaired_on_reopen`（`:302`）、`test_seq_continues_from_the_last_complete_line`（`:317`）、`test_no_tmp_file_is_left_behind`（`:332`） |
+| M7-5 | 单行 ≤ 4 KB；数组 ≤ 20 项，超出截断并另记总数 | `MAX_LINE_BYTES = 4096`（`:26`）在 `emit()` `:411` 处拒绝超长行；`MAX_ARRAY_ITEMS = 20`（`:27`），截断时写入 `x_<field>_total`（`:387`）——`x_` 前缀是 4.5 条给"附加元数据"留的通道 | `test_oversized_line_is_refused`（`:279`）、`test_long_arrays_are_truncated_with_a_running_total`（`:285`） |
+| M7-6 | 原文不落盘（Q7）：schema 无正文字段；校验器**拒绝** `text`/`content`/`body`/`prompt_raw` 类字段 | `ENVELOPE`（`:70`）与 `EVENT_FIELDS`（`:91`）只声明 id/枚举/计数/`sha256`/`length`；`validate()` 对正文字段（含 `_text`/`_body` 后缀变体）一律报错 | `test_body_fields_are_refused`（`:234`）、`test_body_field_suffixes_are_refused_too`（`:241`）、`test_hash_and_length_are_the_accepted_alternative`（`:248`） |
+| M7-7 | 保留期可执行：`purge --before <date>`，删除后无 `.jsonl`/`.jsonl.tmp`/备份残留，并输出删除清单 | `purge()`（`:480`）按 mtime 删 `logs/**/*.jsonl`，并**无条件**删除 `*.jsonl.tmp`（它们只存在于"崩溃"与"下次打开"之间）；CLI 在 `:558` | `test_purge_removes_old_sessions_and_keeps_recent_ones`（`:341`）、`test_purge_leaves_no_jsonl_or_tmp_behind`（`:356`）、`test_purge_reports_what_it_removed`（`:367`） |
+
+**M7-7 的后半句尚未满足，如实记录**：SPEC 要求"重跑 `analysis/` 时须显式报告哪些结论依赖已删除数据"，而 `analysis/`（SPEC M10）按 Q8 拍板是 **N/A**，本期不存在重算脚本。
+所以本期只交付"删除清单"这一半；这条缺口在 §6 单列，不当作已实现。
+
+---
+
 ## 3. 模块级证据
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
@@ -100,6 +119,7 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | `govern/impact.py` | 新增（M3 = SPEC M4） | `analyze()` `:170`；`recall_precision()` `:284`；`impact_hash()` `:265`；`risk_level()` `:272` | `tests/test_impact.py`（18 条：recall/precision、负对照、风险分层、健壮性、确定性、性能、CLI）；`python -m govern.impact --selftest` → `ok: recall=1.00 precision=1.00 on 6 tasks (min recall 1.00, min precision 0.80)` |
 | `govern/card.py` | 新增（M4 = SPEC M5） | `build()` `:65`；`to_html()` `:108`；`CardItem` `:34`、`Card` `:44` | `tests/test_card.py`（16 条）；`python -m govern.card --selftest` → `ok: T-L01a card has 5 items, 5 required, no patch text` |
 | `govern/gate.py` | 新增（M4 = SPEC M6） | `Gate.toggle()` `:57`、`decide()` `:72`、`open()` `:82`、`issue_token()` `:87`、`consume_token()` `:97`；`PassThroughGate` `:105` | `tests/test_gate.py`（19 条）；`python -m govern.gate --selftest` → `ok: 6 cards, blocked until every item is confirmed, C0 passthrough, min dwell 800 ms` |
+| `govern/log.py` | 新增（M5 = SPEC M7） | `SCHEMA_VERSION` `:25`；`ENVELOPE` `:70`；`EVENT_FIELDS` `:91`；`validate()` `:260`；`Logger` `:320`；`scan_pii()` `:447`；`purge()` `:480` | `tests/test_log.py`（34 条）；`python -m govern.log --selftest` → `ok: 16 event types, seq from 1, atomic append, purge clean` |
 | `corpus/` | 数据 | `corpus/index.json`；`PAIR-01`=`T-L01a`(billing)/`T-L01b`(loans) 层 L；`PAIR-02`=`T-L02a`(ticketing)/`T-L02b`(payroll) 层 M；`PAIR-03`=`T-L03a`(inventory)/`T-L03b`(fleet) 层 H | `test_index_holds_three_pairs`（`tests/test_corpus.py:34`）、`test_every_task_directory_is_complete`（`:51`） |
 
 **三层坏味道的递进（这是"难度"的操作化定义）**
@@ -132,6 +152,12 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 .\.venv\Scripts\python.exe -m govern.card --selftest
 .\.venv\Scripts\python.exe -m govern.gate --selftest
 
+# 日志器验收（M5 = SPEC M7）；--validate / --scan 可对任意一次运行的日志复核
+.\.venv\Scripts\python.exe -m govern.log --selftest
+.\.venv\Scripts\python.exe -m govern.log --validate runs\<run_id>\logs\<pid>\<session>.jsonl
+.\.venv\Scripts\python.exe -m govern.log --scan     runs\<run_id>\logs\<pid>\<session>.jsonl
+.\.venv\Scripts\python.exe -m govern.log --purge --run-dir runs\<run_id> --before 2026-01-01
+
 # 项目自检
 .\.venv\Scripts\python.exe -m govern.run --selftest
 ```
@@ -160,6 +186,13 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | 新增 `PassThroughGate(Gate)`（M4） | SPEC M6 验收 4 要求 C0 "走同一个接口、`blocked=false` 恒成立"，但 PLAN 的 `Card` 没有条件字段、`Gate` 也没有条件参数 | 子类只覆写 `decide()`，接口完全一致；C0 的卡由 `build(..., "C0")` 产出，`n_items=0` |
 | 新增 `issue_token()` / `consume_token()`（M4） | SPEC M6 的输出清单要求"授权令牌（一次性）"，PLAN 的接口只列了 `toggle/decide/open` | 两个附加方法，令牌在阻塞时为 `None`、任何勾选变化即失效，单次使用后清除 |
 | 新增 `CardItem` 数据类（M4） | PLAN 只写了 `Card.items`，条目形状由 SPEC M5 的输出定义（`item_id/statement/category/affected_symbol/evidence_ref/required`） | 与 SPEC 的 `card_view.items` 字段一一对应，无额外字段 |
+| `EVENT_FIELDS` 实为 **16** 类事件（M5） | PLAN 第 138 行写"SPEC 4.3 的 14 类事件"，逐条数 SPEC 4.3 的表格是 **16** 类（`session_start` … `integrity_event`）；PLAN 的 14 是笔误 | 按 SPEC 实现 16 类；`test_all_sixteen_event_types_validate`（`tests/test_log.py:166`）以 SPEC 为准钉死数量 |
+| 数组截断时新增 `x_<field>_total` 字段（M5） | SPEC M7 验收 5 要求"截断并另记总数"，但 4.5 条不许发明新字段 | 走 4.5 已给的 `x_` 前缀通道，`validate()` 只对 `x_` 开头的未声明字段放行；不写这个字段就等于悄悄丢数据 |
+| `generation_request.mode` 增加 `replay` 取值（M5） | SPEC 4.3 的枚举写 `mock`/`live`，但 Q3 拍板后交付默认是 `replay`（回放录制、无网络无密钥），`mock` 已不再是独立模式 | 枚举变 `replay`/`live`/`mock`；如果不加这一项，默认路径无法用自己的名字记录，日志会系统性撒谎 |
+| `scan_pii()` 与 `--validate`/`--scan` CLI（M5） | SPEC M7 验收 3 要求"对全部日志做正则扫描"，PLAN 的接口清单只有 `validate()` 与 `purge()` | 纯附加函数与只读子命令；`scan_pii()` 是验收 3 的执行体，`--validate`/`--scan` 让评审者能对真实运行日志复核 |
+| `purge()` 额外无条件删除 `*.jsonl.tmp`（M5） | PLAN 第 145 行只要求"`purge` 后删除 `.jsonl.tmp`"；本实现不留任何 `.tmp` 中转文件，但若历史版本崩溃留下残片，仍须清理，否则"purge 干净"是空话 | 删除清单里会列出这些文件；测试 `test_purge_leaves_no_jsonl_or_tmp_behind`（`tests/test_log.py:356`）覆盖 |
+| 日志目录 `logs/<participant_id>/<session_id>.jsonl`（M5） | SPEC 4.6/M7 给的是这个形状，PLAN 的 `Logger(run_dir, meta)` 未规定子目录 | `Logger` 首参是 run_dir，内部拼 `logs/<pid>/`；SPEC 的路径优先 |
+| `MAX_LINE_BYTES`/`MAX_ARRAY_ITEMS` 留在代码里（M5） | 它们是 SPEC M7 验收 5 写死的 schema 上限（4 KB / 20 项），不是可调阈值：改它等于改 schema 含义，`schema_version` 也得跟着变 | 与 AGENTS §2.4 不冲突的例外——配置里放的是"实验参数"，这两个是"格式常量"；已在常量旁注释 |
 
 ---
 
@@ -171,5 +204,7 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
   它能识别的"契约"是"被 ≥ 2 个包内模块读取的顶层值"这一操作化定义（见 `govern/impact.py` docstring），
   因此它**不会**发现"两个模块各自实现同一算法"这类纯语义重复。
 - 评估卡与门控（SPEC M5/M6 / PLAN M4）**已实现**，但还**没有接线到一次真正的会话**：现在只能通过 `python -m govern.card` 渲染、通过 `python -m govern.gate --selftest` 复演不变量。
-  日志、LLM 客户端、会话控制器、Web 界面（M5/M6/M7/M9）尚未实现，所以"用户动作 → 系统响应"的交互链路目前**不可演示**，不得声称可演示。
+- 遥测日志器（SPEC M7 / PLAN M5）**已实现**，但**还没有任何真实会话给它写事件**：`runs/` 下的日志目前只由测试与 `--selftest` 产生。
+  LLM 客户端、会话控制器、Web 界面（SPEC M6/M8/M9，PLAN 的 M6/M8/M9）尚未实现，所以"用户动作 → 系统响应"的交互链路、以及由真实会话日志重算的指标，目前**都不可演示**，不得声称可演示。
+- M7 验收 7 的**后半句**（重算 `analysis/` 时报告哪些结论依赖已删除数据）未实现：`analysis/`（SPEC M10）按 Q8 是 **N/A**，本期没有重算脚本，因此 `purge` 只交付"删除清单"这一半。
 - 六个种子仓库是**自建语料**（Q4 拍板的结果），不是真实开源仓库的历史；它们只用于让"影响分析 recall / precision"可判分。
