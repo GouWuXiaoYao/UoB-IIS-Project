@@ -59,6 +59,10 @@ def _statement(entry: impact.ImpactItem, limit: int) -> str:
     text = template.format(symbol=entry.symbol)
     if len(text) > limit:
         text = f"{entry.symbol} ({entry.category})"
+    if len(text) > limit:
+        # SPEC M5 caps a statement, so the fallback has to obey the cap too;
+        # an ellipsis keeps it obvious that the reader is seeing a short form.
+        text = text[: limit - 1] + "…" if limit > 1 else text[:limit]
     return text
 
 

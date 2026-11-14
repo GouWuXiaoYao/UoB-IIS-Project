@@ -2,6 +2,10 @@
 runs/
 runs/_sim/
 
+# Release artefacts: reproducible, so they are rebuilt rather than stored.
+# The digest of the submitted snapshot is recorded in README.md and docs/PLAN.md.
+dist/
+
 # Local toolchain: portable git, dev venv, scratch space, install logs
 _tmp/
 _tools/

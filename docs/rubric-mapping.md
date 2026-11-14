@@ -220,12 +220,38 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ---
 
+## 2j. 全链路冻结 → 证据（PLAN 里程碑 M11，对应 SPEC 3.11 六条完成定义）
+
+六条完成定义在 `docs/PLAN.md:13-20`。它们不是"设计意图"，而是六条能当场跑的命令；`tests/test_end_to_end.py` 把每一条都写成了测试，所以回归时不会再悄悄退化。
+
+| # | 完成定义（PLAN §1） | 实测输出（2026-11-14） | 覆盖测试 |
+|---|---|---|---|
+| 1 | `python -m unittest discover -s tests -q` 全绿 | `Ran 328 tests … OK`（exit 0，裸 Python，无 pytest） | `test_1_the_test_command_runs_the_suite`（`tests/test_end_to_end.py:46`，用 `-p test_smoke.py` 证明发现命令可用，避免套件自递归） |
+| 2 | `python -m govern.run --dry-run` → `ok: 6 tasks, 6 cards` | `ok: 6 tasks, 6 cards` / `dry run: no logs written, no network used` | `test_2_one_command_self_test`（`:52`）、`test_a_frozen_tree_writes_no_session_data_to_the_repository`（`:124`，断言 dry run 连 `runs/` 都不新建） |
+| 3 | clone → `python -m govern.run --batch --schedule config/schedule.json` 出结果表 | `ok: batch P01 ran 6 of 6 slots in runs\R-DEMO`，六个 slot 各一行 | `test_3_one_command_reproduces_a_batch_without_network_or_key`（`:56`，断言 6 个 jsonl、首尾为 `session_start`/`session_end`、每条都过 `log.validate`） |
+| 4 | 零魔法数字：阈值只在 `config/config.json` | `tests/test_config_discipline.py` 用 `dataclasses.replace` 改五个参数，行为随之改变 | `test_the_card_statement_limit_comes_from_config`（`:43`）、`test_the_hidden_suite_timeout_comes_from_config`（`:52`）、`test_the_pair_tolerance_comes_from_config`（`:57`）、`test_the_simulation_alpha_comes_from_config`（`:66`）、`test_the_metric_thresholds_are_read_from_config`（`:75`）、`test_no_parameter_is_written_into_the_code`（`:93`） |
+| 5 | `python tools/scan_secrets.py` 零命中 | `ok: 0 finding(s) in 220 files` | `test_5_no_secret_or_endpoint_is_committed`（`:89`） |
+| 6 | `python -m govern.provenance --check` | `ok: 20 rows, 11 modules covered (original=8, reused=3, assisted=9)` | `test_6_the_provenance_ledger_checks_out`（`:94`） |
+
+**冻结产物**：`python tools/make_release.py --build` → `dist/a2-1.0.0.zip`（123 个条目，410,797 字节），`dist/SHA256SUMS` 记 `2f2ea5d269f260d03bd8b942b3cac8ec41383b6266e8824e94b5944b772590c4`。`--verify` 复核通过，且**同一棵树重建两次字节相同**（实测第二次构建 hash 与第一次完全一致）——否则"快照"标识的是构建机器，不是这份工作。归档排除规则由 `tools/make_release.py:34` 的 `SKIP_DIRS`/`SKIP_SUFFIXES`/`SKIP_NAMES`/`SKIP_PREFIXES` 定义，实测 123 个条目中不含 `runs/`、`_tools/`、`.venv/`、`参考代码库/`、`.pyc`、`.docx`、`DSH-`、`A2_API_KEY*`。
+
+**如实记录（M11 的边界与代价）**
+
+- **第 3 条的结果里六个 slot 全是 `tests_pass=False`**：随附的模拟建议**故意**删掉 gold patch 的最后一个文件段（`test_every_shipped_suggestion_omits_at_least_one_consumer`，`tests/test_llm.py:405`），所以每个任务都留下逃逸缺陷。这条命令证明的是"管线能跑通并如实判负"，不是"治理组更好"——后者需要真人数据，本期是 `planned`（见 §6）。
+- `dist/` **不入库**（`.gitignore` 已加）。归档可重建且字节可复现，把 400 KB 二进制放进 Git 只会让"哪个才是提交版"变模糊；摘要写进 `README.md` 与 `docs/PLAN.md` 的 M11 行。
+- `app_version` 从 `0.0.0-draft` 升到 `1.0.0`，仅作为冻结标识，不代表功能变化；它会出现在每条日志事件的 `app_version` 字段里，便于区分"冻结前采集"与"冻结后采集"的数据。
+- 第 4 条里 `tau_review_ms` 与 `mech_dwell_ms` **没有行为消费者**（它们是 SPEC 5.2 的指标阈值：盲接受、机械确认），分析管线按 Q8 为 N/A，所以这两个参数只验证到"从 config 读出并如实报告"（`gate.threshold_summary()`）。这是覆盖缺口，`tests/test_config_discipline.py` 的模块 docstring 与 §6 都写明，不假装它等价于"阈值可调"。
+- 顺带修掉的真缺陷：`card._statement()` 在模板超长时回落到 `symbol (category)`，而回落后**可能仍超过 `card_item_max_chars`**（实测 24 字符上限下返回 53 字符）——SPEC M5 的上限形同虚设。现已硬截断加省略号，由 `test_the_card_statement_limit_comes_from_config` 钉住。
+
+---
+
 ## 3. 模块级证据
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
 |---|---|---|---|
 | `govern/provenance.py` | 新增（M10 = SPEC M11） | `MODULES` `:41`、`ORIGINS` `:44`、`Row` `:53`、`_filled()` `:64`、`parse()` `:78`、`_source_exists()` `:104`、`check()` `:118`、`summarise()` `:158`、`report()` `:171`、`_selftest()` `:186`、`main()` `:243` | `tests/test_provenance.py`（23 条：解析 6、规则 12、CLI 4、自检 1）；`python -m govern.provenance --check` → `ok: 20 rows, 11 modules covered (original=8, reused=3, assisted=9)` |
 | `docs/PROVENANCE.md` | 交付物（M10） | 20 行台账，M1–M11 全覆盖；`assisted` 行带 decision + check，`reused` 行指向 `参考代码库/` 的真实路径 | `test_the_shipped_ledger_passes`（`tests/test_provenance.py:105`）、`test_the_shipped_ledger_covers_every_module`（`:109`） |
+| `tools/make_release.py` | 新增（M11） | `version()` `:48`、`_skip()` `:55`、`payload()` `:70`、`archive_name()` `:84`、`build()` `:88`、`sha256_of()` `:103`、`write_manifest()` `:111`、`verify()` `:118`、`_selftest()` `:143`、`main()` `:164`；排除规则 `SKIP_DIRS` `:34`、`SKIP_SUFFIXES` `:39`、`SKIP_NAMES` `:40`、`SKIP_PREFIXES` `:43` | `tests/test_release.py`（13 条：归档 5、清单 4、CLI 4）；`python tools/make_release.py --selftest` → `ok: 123 files, 15 directory rules, 9 file rules, tree digest 2db36961aa65`；`--build` → `ok: a2-1.0.0.zip sha256:2f2ea5d2…`，`--verify` → `ok: SHA256SUMS matches the archive` |
 | `govern/session.py` | 新增（M8 = SPEC M2） | `load_schedule()` `:68`；`assign()` `:83`；`chi_square_p()` `:114`；`simulate()` `:126`；`rebuild_state()` `:165`；`Session` `:216`（`start/submit_prompt/toggle/confirm/generate/act/end/state/checkpoint/resume`）；`_selftest()` `:576` | `tests/test_session.py`（37 条：分配 9、模拟 7、同意 3、流程 11、续跑 4）；`python -m govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000` |
 | `govern/run.py` | 重写（M8） | `log_for()` `:31`；`_rehearse()` `:87`；`selftest()` `:139`；`single()` `:165`；`batch()` `:202`；`resume()` `:242`；`simulate()` `:266`；`main()` `:315` | `tests/test_run.py`（9 条：自检/演练 2、模拟 1、单会话 3、批处理 2）；`python -m govern.run --selftest` → `ok: 6 tasks, 6 cards` |
 | `config/schedule.json` | 新增（M8） | `schedule_id: SCH-01`、`seed: 42`、三对、`P01`–`P10`、`orders` AB/BA 交替 | `test_the_shipped_schedule_covers_every_pair`（`tests/test_session.py:64`）、`test_task_index_is_sequential_from_zero`（`:80`） |
@@ -317,13 +343,21 @@ python tools\make_storyboard.py --check    # 只核对三帧存在且非空
 # 溯源台账验收（M10 = SPEC M11）：提交前必跑
 .\.venv\Scripts\python.exe -m govern.provenance --check
 .\.venv\Scripts\python.exe -m govern.provenance --selftest
+
+# 全链路冻结（M11）：六条完成定义逐条跑；批量会话无需网络与密钥
+.\.venv\Scripts\python.exe -m govern.run --dry-run
+.\.venv\Scripts\python.exe -m govern.run --batch --participant P01 --schedule config\schedule.json --run-id R-DEMO
+python tools\make_release.py --build        # dist/a2-<version>.zip + SHA256SUMS
+python tools\make_release.py --verify       # 复核摘要
+python tools\make_release.py --selftest     # 核对排除规则
+.\.venv\Scripts\python.exe -m pytest tests\test_end_to_end.py tests\test_config_discipline.py tests\test_release.py -q
 ```
 
 > 说明：`.venv/` 只是本机开发工具链（pytest 属**测试期**依赖，不进入运行时）；
 > 交付代码在 `govern/` 与 `tools/` 内，只用标准库。隐藏测试套件自 M7 起由
 > `govern/hidden.py` 用标准库在子解释器里跑（不再需要 pytest），所以
 > `python -m govern.corpus --check` 与 `python -m govern.score --selftest`
-> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（300 条）。
+> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（328 条）。
 
 ---
 
@@ -378,6 +412,12 @@ python tools\make_storyboard.py --check    # 只核对三帧存在且非空
 | 拦截提示按**陈述**而非 item_id 列出未确认项（M9） | 第一版直接渲染服务端 `missing` 的 `item_id`（`T-L01a-side_effect-003`），人能读的字面意义为零，等于把"机械勾选"换个形式又做了一遍 | 只改前端展示（`labelFor()`）；`/api/toggle` 与 `/api/generate` 返回的 `missing` 仍是 `item_id` 列表，API 契约不变 |
 | `_close()` 增加 `withdrawn` 参数（M9） | UI 模式下用户可能没点 Finish 就关掉页面；把它记成"完成"就是伪造数据 | 位置参数与默认值向后兼容；未完成时 `completed_all=false`、`withdrawn=true` |
 | `--port` 要求同时给 `--session` 与 `--task`（M9） | 服务器一次只服务一个会话，缺会话就没有可展示的对象；默认值会悄悄造出一个没人确认过的会话 | 缺参数 → `EXIT_USAGE` 并说明原因；`test_port_without_a_session_is_a_usage_error`（`tests/test_smoke.py:64`） |
+| `card._statement()` 增加硬截断（M11） | 模块超长时回落到 `symbol (category)`，回落结果**仍可能超过 `card_item_max_chars`**（实测上限 24 时返回 53 字符），SPEC M5 的"每条 ≤ 120 字符"因此形同虚设 | 回落后再按上限截断并加省略号；`test_the_card_statement_limit_comes_from_config`（`tests/test_config_discipline.py:43`）在 24 字符上限下断言成立 |
+| 新增 `gate.threshold_summary()`（M11） | `mech_dwell_ms` 没有任何行为消费者（它是 SPEC 5.2 的指标阈值），但"读自 config"这件事仍须可测：原来这个值只在 `_selftest` 的 f-string 里出现，无法被断言 | 新函数返回同一句文本，`_selftest()` 改为调用它；**输出字符串逐字不变**（`min dwell 800 ms`），故 `tests/test_gate.py` 的既有断言不受影响 |
+| `tools/make_release.py` 需要 `sys.path` 引导（M11） | 以 `python tools\make_release.py` 运行时 `sys.path[0]` 是 `tools/`，`from govern import config` 直接 `ModuleNotFoundError`（实测），与 `make_repo.py`/`make_recordings.py` 的写法一致才能跑通 | 模块顶部 `sys.path.insert(0, str(ROOT))`，与既有两个工具同款 |
+| `--batch` 必须给 `--participant`（M11） | 批量会话按被试逐个分配 slot，没有被试就没有可分配的 schedule 行；给默认值会静默造出一个"P01"的假被试 | 缺参数 → `EXIT_USAGE`；`test_3_one_command_reproduces_a_batch_without_network_or_key`（`tests/test_end_to_end.py:56`）以显式 `--participant P01` 调用 |
+| `app_version` 由 `0.0.0-draft` 升到 `1.0.0`（M11） | M11 是冻结里程碑，`app_version` 会写进每条日志事件的信封；冻结前采集的数据必须能与冻结后区分开 | 仅改 `config/config.json` 一个值；归档名随之变为 `a2-1.0.0.zip`，测试全部读 `CONFIG.app_version` 故不受影响 |
+| `dist/` 加入 `.gitignore`（M11） | 归档可重建且字节可复现（实测两次构建同 hash），把 400 KB 二进制放进 Git 只会让"哪个才是提交版"变模糊 | 摘要写进 `README.md` 与 `docs/PLAN.md` 的 M11 行；评审者用 `make_release --build/--verify` 自行重建 |
 
 ---
 
@@ -402,3 +442,5 @@ python tools\make_storyboard.py --check    # 只核对三帧存在且非空
 - **溯源台账（SPEC M11 / PLAN M10）已实现并通过校验**，但要如实说明它**证明的边界**：校验器证明的是"形式合规"——每个模块有行、三种来源都出现、assisted 行有 decision 与 check、reused 路径真实存在。它**不能**证明某句 `check` 里写的测试确实覆盖了那件事，也不能证明 `decision` 是当时的真实想法。前者靠 `docs/rubric-mapping.md` 的测试名逐条对应，后者只能靠提交历史与这份文件本身的可读性。
   - 因此台账里的 `check` 列一律写成**可复跑的命令或具名测试**，不写"已审阅"这类无法验证的措辞；`original` 也不用来夸功——它只在"这是作者的裁定/红线"时使用。
   - `P-019`、`P-020` 两行的 `commit` 列由紧随其后的一次文档提交补齐（台账无法在自己的提交里引用自己的 hash）。
+- **全链路冻结（M11）已完成，但"完成"指六条可跑的定义**（`docs/PLAN.md:13-20`），不含"有人类数据"：`--batch` 的六个 slot 全部 `tests_pass=False`，因为随附的模拟建议**故意**漏掉 gold patch 的最后一个文件段（`test_every_shipped_suggestion_omits_at_least_one_consumer`）。这条命令证明管线能跑通并如实判负，**不是**处理效应；不要把它写成"治理组提升了 X%"。
+- `tau_review_ms` 与 `mech_dwell_ms` 在代码里**没有行为消费者**：它们是 SPEC 5.2 的指标阈值（盲接受、机械确认），而按 Q8 分析管线是 **N/A**。第 4 条完成定义对这两个参数只验证到"从 config 读出并如实报告"（`gate.threshold_summary()`），不等价于"阈值可调"。要真正用到它们，必须先落地 `analysis/`。

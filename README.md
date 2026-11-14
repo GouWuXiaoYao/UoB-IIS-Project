@@ -64,8 +64,18 @@ If it is available: `python -m pytest -q`.
 Two identifiers, because neither alone is enough here:
 
 1. **Git history** — real commits; `git log --oneline`.
-2. **Checksum snapshot** — from M11 each release is also a ZIP with a `SHA256SUMS` manifest, so a
-   reviewer without Git can verify which bytes were assessed.
+2. **Checksum snapshot** — each release is also a ZIP with a `SHA256SUMS` manifest, so a reviewer
+   without Git can verify which bytes were assessed:
+
+   ```powershell
+   python tools\make_release.py --build    # dist/a2-1.0.0.zip + dist/SHA256SUMS
+   python tools\make_release.py --verify   # re-hash the archive and compare
+   ```
+
+   The frozen snapshot is `a2-1.0.0.zip`, 123 files,
+   `sha256:2f2ea5d269f260d03bd8b942b3cac8ec41383b6266e8824e94b5944b772590c4`. The archive is
+   reproducible (a second build of the same tree hashes identically), so it identifies the work
+   rather than the machine that packed it. `dist/` is not committed; rebuild it instead.
 
 ## Development record
 

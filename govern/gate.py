@@ -182,9 +182,15 @@ def _selftest() -> int:
     status = "ok" if not failures else "FAIL"
     print(
         f"{status}: {len(loaded)} cards, blocked until every item is confirmed, "
-        f"C0 passthrough, min dwell {cfg.mech_dwell_ms} ms"
+        f"{threshold_summary()}"
     )
     return 0 if not failures else 1
+
+
+def threshold_summary() -> str:
+    """The metric threshold this module reports, read from config (SPEC 5.2)."""
+    cfg = config.load()
+    return f"C0 passthrough, min dwell {cfg.mech_dwell_ms} ms"
 
 
 def main(argv: list[str] | None = None) -> int:
