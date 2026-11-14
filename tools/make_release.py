@@ -34,7 +34,7 @@ MANIFEST = "SHA256SUMS"
 SKIP_DIRS = {
     "runs", "dist", ".venv", "_tools", "_tmp", "_pydeps", ".scratch",
     "__pycache__", ".git", ".pytest_cache", ".mypy_cache", ".idea", ".vscode",
-    "参考代码库", "node_modules",
+    "参考代码库", "modules", "node_modules",
 }
 SKIP_SUFFIXES = (".pyc", ".pyo", ".tmp", ".docx", ".zip")
 SKIP_NAMES = {

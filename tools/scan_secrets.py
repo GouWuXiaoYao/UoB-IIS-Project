@@ -28,6 +28,10 @@ SKIP_DIRS = {
     # them would only report the same files twice.
     "runs",
     "dist",
+    # Course lecture material supplied by the university: third-party PDFs and the
+    # text dumps extracted from them. They are not our files, are never committed,
+    # and are full of lecture links -- scanning them would drown the real findings.
+    "modules",
 }
 SKIP_SUFFIXES = {".docx", ".png", ".jpg", ".jpeg", ".zip", ".whl", ".pyc"}
 # These files *document* the rule and carry synthetic examples inside tests, so

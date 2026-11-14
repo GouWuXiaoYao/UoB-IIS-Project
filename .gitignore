@@ -41,3 +41,6 @@ DSH-*.md
 Thumbs.db
 .vscode/
 .idea/
+
+# Course lecture material (copyrighted, not redistributed)
+modules/
