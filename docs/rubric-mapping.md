@@ -4,7 +4,8 @@
 > [SPEC.md](SPEC.md) 0.2；这里只做一件事：**把每个评分项落到仓库里可被第三方复核的证据上**
 > （文件:行号、测试名、可复现命令）。没有证据的行一律标 `待补`，不写"已完成"。
 
-当前覆盖：**M0（骨架）、M1（语料工厂）、M2（中/高难度两对）**。后续里程碑每完成一个，补对应行。
+当前覆盖：**M0（骨架）、M1（语料工厂）、M2（中/高难度两对）、M3（影响分析器 = SPEC M4）**。
+后续里程碑每完成一个，补对应行。
 行号会随代码改动漂移，**以测试名为主键**，行号只作快速定位。
 最后更新：2026-11-14。
 
@@ -15,8 +16,8 @@
 | 评分项（A2） | 本项目落点 | 证据（文件:行号 / 测试名） | 状态 |
 |---|---|---|---|
 | **Design reasoning and scope** | SPEC 1–2 章（RQ / 假设 / 设计）+ 每次范围收缩的记录 | `docs/SPEC.md` 6.0 决议表（Q1–Q8 八条拍板）；`docs/SPEC.md` 3.0 交付集表（MUST / SIM / PLAN / N/A 四态）；`docs/PLAN.md` 里程碑 M0–M11 | M0–M2 已落地，其余按里程碑推进 |
-| **Developed interaction** | SPEC 第 3 章模块清单；M4 评估卡、M5 渲染、M6 门控 | `govern/corpus.py:126` `check_task()` 产出的可运行仓库，是"用户任务"的输入侧；交互侧待 M4–M6 | `待补`（M4–M6） |
-| **Architecture and technical reasoning** | `govern/` 模块边界 + 零运行时依赖约束 | `AGENTS.md` §2 六条硬规则；`govern/patch.py:102` `apply_unified_diff()`（不依赖 git/patch 的离线打补丁）；`govern/corpus.py:79` `_run_hidden()`（隐藏测试在副本中执行，语料只读） | M0–M2 已落地 |
+| **Developed interaction** | SPEC 第 3 章模块清单；M4 评估卡、M5 渲染、M6 门控 | `govern/corpus.py:126` `check_task()` 产出的可运行仓库，是"用户任务"的输入侧；影响分析（卡的原料）已由 `govern/impact.py:170` `analyze()` 提供 | `待补`（交互侧 M4–M6，卡与门控尚未实现） |
+| **Architecture and technical reasoning** | `govern/` 模块边界 + 零运行时依赖约束 | `AGENTS.md` §2 六条硬规则；`govern/patch.py:102` `apply_unified_diff()`（不依赖 git/patch 的离线打补丁）；`govern/corpus.py:79` `_run_hidden()`（隐藏测试在副本中执行，语料只读）；`govern/impact.py:170` `analyze()`（纯 `ast`，无模型、无网络，见 `tests/test_impact.py:122` 的跨进程哈希一致性） | M0–M3 已落地 |
 | **Development evidence and authorship** | 里程碑即提交单元；每个验收都有命令与输出 | `docs/rubric-mapping.md` 本文件第 2 节；`git log` 每次提交对应一个里程碑；证据命令见第 4 节 | 持续维护 |
 
 ---
@@ -44,6 +45,30 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ---
 
+## 2b. 影响分析器验收 → 证据（SPEC M4 五条，被 PLAN 编为里程碑 M3）
+
+命名提醒：**SPEC 的 M4 就是 PLAN 的 M3**（PLAN 第 248 行把"影响分析器（M4）"排在里程碑 M3）。
+验收命令：`python -m govern.impact --selftest`。
+
+| # | 验收标准（SPEC M4） | 证据 | 覆盖测试 |
+|---|---|---|---|
+| 1 | 6 个 gold patch 上 `recall = 1.0`、精确率 ≥ 0.8（A-9） | `govern/impact.py:284` `recall_precision()`；实测 6/6 任务 `recall=1.00 precision=1.00`；阈值来自 `config/config.json` 的 `impact_recall_min` / `impact_precision_min` | `test_recall_is_perfect_on_every_task`（`tests/test_impact.py:64`）、`test_precision_meets_the_configured_floor`（`:71`） |
+| 2 | 区分度：仅改函数内部 vs 改变跨模块契约，`risk_level` 必须不同 | `govern/impact.py:272` `risk_level()`：有契约 → `high`，只有全局/副作用 → `medium`，都没有 → `low`；两个构造用例内联在测试里 | `test_contract_change_is_high_risk`（`:150`）、`test_internal_only_change_is_low_risk`（`:156`）、`test_the_two_cases_differ`（`:162`） |
+| 3 | 健壮性：空 patch、语法错误文件、单文件仓库都不抛未捕获异常，返回明确错误码 | `govern/impact.py:143` `_load()` 把 `SyntaxError` 转成 `category="other"` 条目；`analyze()` 对不存在的目录返回 `other` 条目而不是抛异常 | `test_empty_repository_returns_an_empty_set`（`:170`）、`test_syntax_error_is_reported_not_raised`（`:177`）、`test_single_file_repository_is_fine`（`:185`）、`test_missing_repository_returns_an_other_item`（`:191`） |
+| 4 | 交互可接受：单次分析 < 2 s（最大实例上测） | 实测最大实例（H 层）单次 **4.4 ms**，5 次平均断言 < 2 s | `test_analysis_is_under_two_seconds_on_the_largest_task`（`:199`） |
+| 5 | 输出确定性：同一输入两次运行 `impact_set_hash` 相同 | `govern/impact.py:265` `impact_hash()` 对已排序条目做 SHA-256；条目排序键为 `(category, symbol, files, detail)`，与文件遍历顺序无关 | `test_same_input_same_hash`（`:116`）、`test_hash_is_stable_across_processes`（`:122`，子进程重算，抓 set/dict 迭代序） |
+
+**为什么 recall=1.00 不等于"背答案"**
+
+- 标签 `impact_labels.json` 是在 **M2** 写下的，分析器是 **M3** 才有的，且 `analyze()` 只读仓库 AST，从不读标签文件。
+- 契约的操作化定义写在模块 docstring 里：**某个模块的顶层"值"（不是函数）被 ≥ 2 个包内模块读取，则这些读取者对同一份假设构成契约**；锚点是其余读取者实际调用的那个模块。
+- 反向证据：`test_an_extra_reader_adds_a_contract_and_costs_precision`（`tests/test_impact.py:96`）往真实仓库里加一个读取 `state.TAX_RATE` 的新模块，断言分析器**新增**一条未标注契约、精确率随之降到 1.0 以下 —— 说明输出确实由代码驱动。
+
+**精度口径（诚实声明）**：`recall_precision()` 只在标签列出的两类（`global_var`、`cross_module_contract`）上算分母；
+`side_effect` / `test_impact` / `other` 是为评估卡（M4/M5）服务的咨询性条目，标签从未打算穷举它们，把它们计入分母只会惩罚分析器的有用性。
+
+---
+
 ## 3. 模块级证据
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
@@ -51,6 +76,7 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | `govern/patch.py` | 新增（M1） | `parse()` `:37`；`changed_files()` `:91`；`apply_unified_diff()` `:102` | `tests/test_patch.py`（5 条：单 hunk、多文件、新建文件、上下文不匹配、目标目录缺失） |
 | `govern/corpus.py` | 扩展（M2） | `check_task()` `:126`；`check_all()` `:158`；新增 `_pair_summary()` `:165`、`summarise()` `:187`（多输出 `pairs N/N within X%`） | `tests/test_corpus.py`（17 条）；`python -m govern.corpus --check` → `ok: 6 tasks, gold 6/6, pairs 3/3 within 20%` |
 | `tools/make_repo.py` | 扩展（M2） | `DOMAINS` `:29`（6 个域）；`_files()` `:577` 按层分派；`_labels()` `:653` 从 diff 反算文件数；`build_corpus()` `:707` | `python tools/make_repo.py --selftest` → `ok: 61 corpus files match the factory` |
+| `govern/impact.py` | 新增（M3 = SPEC M4） | `analyze()` `:170`；`recall_precision()` `:284`；`impact_hash()` `:265`；`risk_level()` `:272` | `tests/test_impact.py`（18 条：recall/precision、负对照、风险分层、健壮性、确定性、性能、CLI）；`python -m govern.impact --selftest` → `ok: recall=1.00 precision=1.00 on 6 tasks (min recall 1.00, min precision 0.80)` |
 | `corpus/` | 数据 | `corpus/index.json`；`PAIR-01`=`T-L01a`(billing)/`T-L01b`(loans) 层 L；`PAIR-02`=`T-L02a`(ticketing)/`T-L02b`(payroll) 层 M；`PAIR-03`=`T-L03a`(inventory)/`T-L03b`(fleet) 层 H | `test_index_holds_three_pairs`（`tests/test_corpus.py:34`）、`test_every_task_directory_is_complete`（`:51`） |
 
 **三层坏味道的递进（这是"难度"的操作化定义）**
@@ -76,6 +102,9 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 # 语料可重建性
 .\.venv\Scripts\python.exe tools\make_repo.py --selftest
 
+# 影响分析器验收（M3 = SPEC M4）
+.\.venv\Scripts\python.exe -m govern.impact --selftest
+
 # 项目自检
 .\.venv\Scripts\python.exe -m govern.run --selftest
 ```
@@ -94,6 +123,11 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | 新增模块 `govern/patch.py` | PLAN 只写了"gold patch 要能应用"，未指定实现方式；引入 `git`/`patch` 会违反"零运行时依赖" | 提供 `parse` / `apply_unified_diff` / `changed_files` 三个公开函数，并有独立测试 |
 | `summarise()` 增加可选参数 `tolerance`（M2） | PLAN 的验收命令要求输出 `pairs 3/3 within 20%`，20% 必须来自 `config/config.json` 而非代码字面量；测试需要注入不同阈值来验证判定逻辑 | 默认值 `None` 时自行读 config，旧调用 `summarise(checks)` 行为不变 |
 | `--check` 的汇总行文本改变（M2） | 同上，PLAN 第 247 行把该行定为 M2 的验收判据：`ok: 6 tasks, gold 6/6, pairs 3/3 within 20%` | 仅影响 stdout 文本；原有的逐任务 `ok/FAIL` 行保留 `labels=` 字段不变 |
+| 新增 `govern/impact.py` 的 `risk_level()`（M3） | SPEC M4 验收 2 要求 `impact_set` 带"风险等级"，但 PLAN 的 `ImpactSet` 数据类只有 `items` 一个字段；往冻结数据类加字段会改动 PLAN 定的接口 | 纯附加的模块级函数 `risk_level(ImpactSet) -> str`，`ImpactSet` 本身不变 |
+| 新增 `impact_hash()`（M3） | SPEC 4.3 的 `card_shown` 事件与 2.3 的复现性判据都需要 `impact_set_hash`，PLAN 的接口清单里没有提供函数 | 纯附加函数，返回 `sha256:...`，不改任何已有签名 |
+| 新增 `ImpactSet.of(category)`（M3） | 按类别取条目在测试、`recall_precision()` 与后续卡片里反复出现，作为方法比三处重复列表推导更清楚 | 冻结数据类的只读辅助方法，不增加状态 |
+| `analyze(repo, intent)` 不使用 `intent`（M3） | 若让任务措辞影响输出，同一快照会给出不同 `impact_set_hash`，破坏 SPEC 2.3 的复现性；措辞只在卡片层用于排序 | 签名按 PLAN 保留，参数被显式丢弃并写在 docstring 里，有 `test_hash_ignores_intent_wording` 兜底 |
+| `recall_precision()` 只在两类标签上算精度（M3） | 标签文件只标注全局变量与跨模块契约（SPEC M4 验收 1 与 A-9 的原话），`side_effect`/`test_impact` 属咨询性条目 | 精度口径变窄，但在文档与 docstring 里写明；负对照测试保证精度仍会随代码变化 |
 
 ---
 
@@ -101,5 +135,8 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 - 没有采集任何人类被试数据；`M2` 是 **SIM**，`M10` 是 **N/A**（SPEC 3.0）。
 - 没有真实 LLM 调用（`govern/llm.py` 属 M6，尚未实现，`corpus/` 与 `recordings/` 均无模型交互）。
-- 跨模块分析器（M4）尚未实现，`impact_labels.json` 目前是**人工标注的金标准**，不是 M4 的输出。
+- 影响分析器（SPEC M4 / PLAN M3）**已实现**，但它只做静态分析：不做语义推断、不读 diff、不调模型。
+  它能识别的"契约"是"被 ≥ 2 个包内模块读取的顶层值"这一操作化定义（见 `govern/impact.py` docstring），
+  因此它**不会**发现"两个模块各自实现同一算法"这类纯语义重复。
+- 评估卡、门控、日志、LLM 客户端（M4–M7）尚未实现，所以"用户动作 → 系统响应"的交互链路目前不可演示。
 - 六个种子仓库是**自建语料**（Q4 拍板的结果），不是真实开源仓库的历史；它们只用于让"影响分析 recall / precision"可判分。
