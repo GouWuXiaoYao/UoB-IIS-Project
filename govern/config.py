@@ -34,6 +34,7 @@ class Config:
     block_size: int
     retention_days: int
     conditions: tuple[str, ...]
+    card_item_max_chars: int
     task_time_limit_s: int
     test_timeout_s: int
 

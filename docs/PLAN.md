@@ -246,7 +246,7 @@ C0 走完全相同的路径，只有 `Gate.decide` 恒 `blocked=false`——保�
 | M1 | 语料工厂（低难度一对） | `tools/make_repo.py` + `T-L01a`/`T-L01b`（含坏味道、gold、隐藏测试、标签）、`index.json` | `python -m govern.corpus --check` → `ok: 2 tasks, gold 2/2, labels 2/2` | 2h |
 | M2 | 中/高难度两对 | `T-L02a/b`、`T-L03a/b` | 同上 → `ok: 6 tasks, gold 6/6, pairs 3/3 within 20%` | 1.5h |
 | M3 | 影响分析器（M4） | `govern/impact.py` | `python -m govern.impact --selftest` → `recall=1.00 precision>=0.80 on 6 tasks` | 2h |
-| M4 | 卡片 + 门（M5、M6） | `govern/card.py`、`govern/gate.py` | `python -m govern.gate --selftest` → 未勾满被拒、勾满解锁、**绕过接口的负向测试必须失败** | 2h |
+| M4 | 卡片 + 门（M5、M6） | `govern/card.py`、`govern/gate.py` | `python -m govern.gate --selftest` → 未勾满被拒、勾满解锁、**绕过接口的负向测试必须失败**。**已完成（2026-11-14）**：`ok: 6 cards, blocked until every item is confirmed, C0 passthrough, min dwell 800 ms`；负向测试见 `tests/test_gate.py:131-165` | 2h |
 | M5 | 日志器（M7） | `govern/log.py` + schema 表 | `python -m govern.log --selftest` → 14 类事件校验通过；正文类字段被拒；`purge` 无残留 | 2h |
 | M6 | LLM 客户端（M3） | `govern/llm.py`、`recordings/` | `python -m govern.llm --selftest` → replay 10 次 hash 全等、无网络；`scan_secrets` 零命中 | 2h |
 | M7 | 评估器（M8） | `govern/score.py`、`config/rules.json` | `python -m govern.score --selftest` → gold 全绿、干净样本 0、六类规则各有正反例 | 2h |
@@ -268,7 +268,7 @@ C0 走完全相同的路径，只有 `Gate.decide` 恒 `blocked=false`——保�
 | R5 | Python 3.15 与某库不兼容 | 任何 `import` 失败 | 零第三方运行时依赖，把该风险消除 |
 | R6 | UI 成为时间黑洞 | M9 超 2h | 直接改 `参考代码库/index.html`（已验证可用的 49 行骨架），不引入框架、不做视觉打磨 |
 | R7 | **无 git → 无法给出 commit/release** | M0 | **已处理（2026-11-14）**：winget 与官方安装器在本机沙箱内均失败（winget 退出码 `-1978335231`，Inno 静默安装无落地文件），改用 **MinGit 2.56.1 便携版**，解压在 `_tools/git`（已被 `.gitignore` 排除），仅通过 `$env:PATH` 前插调用；仓库因此有真实 commit。**同时保留 ZIP + `SHA256SUMS` 快照**，两者在 README 中如实并列说明 |
-| R8 | 门被绕过（最致命，直接命中红线） | M4 负向测试失败 | 生成路径只接受 `Gate.open() == True`；接口层无公开旁路；有专门负向测试 |
+| R8 | 门被绕过（最致命，直接命中红线） | M4 负向测试失败 | 生成路径只接受 `Gate.open() == True`；接口层无公开旁路；有专门负向测试。**M4 已验证**：门的全部状态私有、构造时校验卡（`required_ids` 与 `n_required` 不符即 `ValueError`）、确认不跨实例继承、令牌一次性且勾选变化即失效；`tests/test_gate.py` 的 `BypassTests` 五条覆盖 |
 | R9 | 日志被写成半行/丢事件 | M5 | 单行 `write` + `flush` + `fsync`；中途杀掉进程的测试必须在 M5 通过 |
 | R10 | 断点续跑双写 | M8 | 以日志末条 `seq` 为唯一权威，state 与日志冲突即报错停止 |
 | R11 | 计划分析被误写成实测 | 写报告时 | SPEC 5 节横幅 + 8.1b 自查表；报告中禁用 "experiment shows" |

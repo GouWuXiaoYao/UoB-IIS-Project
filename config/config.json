@@ -13,6 +13,7 @@
   "block_size": 4,
   "retention_days": 90,
   "conditions": ["C0", "C1"],
+  "card_item_max_chars": 120,
   "task_time_limit_s": 1800,
   "test_timeout_s": 120
 }

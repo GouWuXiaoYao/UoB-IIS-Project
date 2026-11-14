@@ -4,7 +4,7 @@
 > [SPEC.md](SPEC.md) 0.2；这里只做一件事：**把每个评分项落到仓库里可被第三方复核的证据上**
 > （文件:行号、测试名、可复现命令）。没有证据的行一律标 `待补`，不写"已完成"。
 
-当前覆盖：**M0（骨架）、M1（语料工厂）、M2（中/高难度两对）、M3（影响分析器 = SPEC M4）**。
+当前覆盖：**M0（骨架）、M1（语料工厂）、M2（中/高难度两对）、M3（影响分析器 = SPEC M4）、M4（评估卡 + 门控 = SPEC M5/M6）**。
 后续里程碑每完成一个，补对应行。
 行号会随代码改动漂移，**以测试名为主键**，行号只作快速定位。
 最后更新：2026-11-14。
@@ -16,8 +16,8 @@
 | 评分项（A2） | 本项目落点 | 证据（文件:行号 / 测试名） | 状态 |
 |---|---|---|---|
 | **Design reasoning and scope** | SPEC 1–2 章（RQ / 假设 / 设计）+ 每次范围收缩的记录 | `docs/SPEC.md` 6.0 决议表（Q1–Q8 八条拍板）；`docs/SPEC.md` 3.0 交付集表（MUST / SIM / PLAN / N/A 四态）；`docs/PLAN.md` 里程碑 M0–M11 | M0–M2 已落地，其余按里程碑推进 |
-| **Developed interaction** | SPEC 第 3 章模块清单；M4 评估卡、M5 渲染、M6 门控 | `govern/corpus.py:126` `check_task()` 产出的可运行仓库，是"用户任务"的输入侧；影响分析（卡的原料）已由 `govern/impact.py:170` `analyze()` 提供 | `待补`（交互侧 M4–M6，卡与门控尚未实现） |
-| **Architecture and technical reasoning** | `govern/` 模块边界 + 零运行时依赖约束 | `AGENTS.md` §2 六条硬规则；`govern/patch.py:102` `apply_unified_diff()`（不依赖 git/patch 的离线打补丁）；`govern/corpus.py:79` `_run_hidden()`（隐藏测试在副本中执行，语料只读）；`govern/impact.py:170` `analyze()`（纯 `ast`，无模型、无网络，见 `tests/test_impact.py:122` 的跨进程哈希一致性） | M0–M3 已落地 |
+| **Developed interaction** | SPEC 第 3 章模块清单；M4 评估卡、M5 渲染、M6 门控 | `govern/corpus.py:126` `check_task()` 产出的可运行仓库，是"用户任务"的输入侧；卡与门已落地：`govern/card.py:65` `build()`、`:108` `to_html()`、`govern/gate.py:57` `toggle()`、`:72` `decide()` | 交互链路还差日志与界面（M5、M9）；卡与门已可演示 `待补（M5/M9）` |
+| **Architecture and technical reasoning** | `govern/` 模块边界 + 零运行时依赖约束 | `AGENTS.md` §2 六条硬规则；`govern/patch.py:102` `apply_unified_diff()`（不依赖 git/patch 的离线打补丁）；`govern/corpus.py:79` `_run_hidden()`（隐藏测试在副本中执行，语料只读）；`govern/impact.py:170` `analyze()`（纯 `ast`，无模型、无网络，见 `tests/test_impact.py:122` 的跨进程哈希一致性）；`govern/gate.py:35` 的门会校验卡（`required_ids` 与 `n_required` 不符即拒绝） | M0–M4 已落地 |
 | **Development evidence and authorship** | 里程碑即提交单元；每个验收都有命令与输出 | `docs/rubric-mapping.md` 本文件第 2 节；`git log` 每次提交对应一个里程碑；证据命令见第 4 节 | 持续维护 |
 
 ---
@@ -69,6 +69,27 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ---
 
+## 2c. 评估卡与门控验收 → 证据（SPEC M5 四条 + M6 五条，PLAN 里程碑 M4）
+
+验收命令：`python -m govern.gate --selftest`（PLAN 第 249 行把"未勾满被拒、勾满解锁、绕过接口的负向测试必须失败"定为判据）。
+
+| # | 验收标准 | 证据 | 覆盖测试 |
+|---|---|---|---|
+| M5-1 | 无凭空条目：每个 `affected_symbol` 必须能在 `impact_set` 里找到来源 | `govern/card.py:65` `build()` 只从 `impact_set.items` 逐条映射，不生成任何新符号；`evidence_ref` 指回 `impact.item_id` | `test_no_item_without_a_source_in_the_impact_set`（`tests/test_card.py:41`）、`test_evidence_points_at_a_real_impact_item`（`:48`） |
+| M5-2 | 每张卡 ≥ 3 条、每条 ≤ 120 字符、必须含具体符号名 | 上限读 `config/config.json` 的 `card_item_max_chars`（不写死在代码里）；`_statement()`（`govern/card.py:57`）在超限时退化为"符号 + 类别"，保证仍含符号 | `test_every_card_has_at_least_three_items`（`:29`）、`test_statements_are_short_and_name_a_symbol`（`:34`） |
+| M5-3 | 确定性渲染 | 纯函数：无时间戳、无随机、无遍历序依赖；`test_impact.py:122` 已证明上游 `impact_hash` 跨进程稳定 | `test_building_twice_gives_the_same_card`（`:69`）、`test_rendering_twice_gives_the_same_html`（`:76`） |
+| M5-4 | **确认前界面不出现 diff 内容** | `to_html()`（`govern/card.py:108`）只渲染 statement / 类别 / 符号，无 `<pre>`、无 `@@`、无新增行文本 | `test_html_does_not_contain_any_added_line_from_the_gold_patch`（`:92`，逐条断言 gold patch 的每个新增行都不在 HTML 里）、`test_html_has_no_code_block_or_patch_hunk`（`:122`） |
+| M6-1 | 不变量：`n_confirmed < n_required` 时任何生成请求被拒 | `govern/gate.py:72` `decide()` 每次重新计算，不缓存判定结果；`issue_token()`（`:87`）在 `blocked` 时返回 `None` | `test_a_fresh_gate_blocks`（`tests/test_gate.py:39`）、`test_partial_confirmation_still_blocks`（`:46`） |
+| M6-2 | 正向路径：勾满解锁，`blocked=false`、`confirmed=true` | 同上；`open()`（`govern/gate.py:82`）= `not decide().blocked` | `test_full_confirmation_unlocks`（`:55`）、`test_unticking_locks_again`（`:66`） |
+| M6-3 | **不可绕过**：不存在绕过门的公开入口 | 门内状态全为私有；构造时校验卡（`required_ids` 与 `n_required` 不符、或 `required_ids` 含卡外条目 → `ValueError`）；确认状态不跨实例继承；令牌一次性且任何勾选变化即失效 | `test_a_new_gate_does_not_inherit_confirmations`（`:131`）、`test_a_card_that_understates_what_is_required_is_rejected`（`:140`）、`test_a_card_that_inflates_the_required_count_is_rejected`（`:146`）、`test_a_required_id_that_is_not_on_the_card_is_rejected`（`:152`）、`test_there_is_no_attribute_that_unlocks_the_gate`（`:158`）、`test_token_is_single_use`（`:107`）、`test_changing_an_answer_invalidates_the_live_token`（`:117`） |
+| M6-4 | C0 同接口、`blocked=false` 恒成立 | `PassThroughGate`（`govern/gate.py:105`）只覆写 `decide()`，其余方法全部继承 | `test_passthrough_never_blocks`（`:168`）、`test_passthrough_still_reports_the_card_shape`（`:175`）、`test_passthrough_exposes_the_same_interface`（`:180`） |
+| M6-5 | 回退：拒绝/关闭卡片后可重新提问，不死锁 | 门无"终止"状态：`toggle()` 可随时反向，`decide()` 是纯查询；重新确认会作废旧令牌而不是锁死 | `test_unticking_locks_again`（`:66`）、`test_changing_an_answer_invalidates_the_live_token`（`:117`） |
+
+**一条不是验收项、但必须写下来的设计决定**：卡片的复选框**从不预勾选**（`required` 只渲染成 `required` 徽标 + `data-required="true"`）。
+预勾选等于把 A1 自己指出的失败模式（confirmation fatigue → 机械确认）做进了界面，所以 `test_html_never_renders_a_pre_ticked_checkbox`（`tests/test_card.py:108`）把这条钉死。
+
+---
+
 ## 3. 模块级证据
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
@@ -77,6 +98,8 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | `govern/corpus.py` | 扩展（M2） | `check_task()` `:126`；`check_all()` `:158`；新增 `_pair_summary()` `:165`、`summarise()` `:187`（多输出 `pairs N/N within X%`） | `tests/test_corpus.py`（17 条）；`python -m govern.corpus --check` → `ok: 6 tasks, gold 6/6, pairs 3/3 within 20%` |
 | `tools/make_repo.py` | 扩展（M2） | `DOMAINS` `:29`（6 个域）；`_files()` `:577` 按层分派；`_labels()` `:653` 从 diff 反算文件数；`build_corpus()` `:707` | `python tools/make_repo.py --selftest` → `ok: 61 corpus files match the factory` |
 | `govern/impact.py` | 新增（M3 = SPEC M4） | `analyze()` `:170`；`recall_precision()` `:284`；`impact_hash()` `:265`；`risk_level()` `:272` | `tests/test_impact.py`（18 条：recall/precision、负对照、风险分层、健壮性、确定性、性能、CLI）；`python -m govern.impact --selftest` → `ok: recall=1.00 precision=1.00 on 6 tasks (min recall 1.00, min precision 0.80)` |
+| `govern/card.py` | 新增（M4 = SPEC M5） | `build()` `:65`；`to_html()` `:108`；`CardItem` `:34`、`Card` `:44` | `tests/test_card.py`（16 条）；`python -m govern.card --selftest` → `ok: T-L01a card has 5 items, 5 required, no patch text` |
+| `govern/gate.py` | 新增（M4 = SPEC M6） | `Gate.toggle()` `:57`、`decide()` `:72`、`open()` `:82`、`issue_token()` `:87`、`consume_token()` `:97`；`PassThroughGate` `:105` | `tests/test_gate.py`（19 条）；`python -m govern.gate --selftest` → `ok: 6 cards, blocked until every item is confirmed, C0 passthrough, min dwell 800 ms` |
 | `corpus/` | 数据 | `corpus/index.json`；`PAIR-01`=`T-L01a`(billing)/`T-L01b`(loans) 层 L；`PAIR-02`=`T-L02a`(ticketing)/`T-L02b`(payroll) 层 M；`PAIR-03`=`T-L03a`(inventory)/`T-L03b`(fleet) 层 H | `test_index_holds_three_pairs`（`tests/test_corpus.py:34`）、`test_every_task_directory_is_complete`（`:51`） |
 
 **三层坏味道的递进（这是"难度"的操作化定义）**
@@ -105,6 +128,10 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 # 影响分析器验收（M3 = SPEC M4）
 .\.venv\Scripts\python.exe -m govern.impact --selftest
 
+# 评估卡与门控验收（M4 = SPEC M5/M6）
+.\.venv\Scripts\python.exe -m govern.card --selftest
+.\.venv\Scripts\python.exe -m govern.gate --selftest
+
 # 项目自检
 .\.venv\Scripts\python.exe -m govern.run --selftest
 ```
@@ -128,6 +155,11 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | 新增 `ImpactSet.of(category)`（M3） | 按类别取条目在测试、`recall_precision()` 与后续卡片里反复出现，作为方法比三处重复列表推导更清楚 | 冻结数据类的只读辅助方法，不增加状态 |
 | `analyze(repo, intent)` 不使用 `intent`（M3） | 若让任务措辞影响输出，同一快照会给出不同 `impact_set_hash`，破坏 SPEC 2.3 的复现性；措辞只在卡片层用于排序 | 签名按 PLAN 保留，参数被显式丢弃并写在 docstring 里，有 `test_hash_ignores_intent_wording` 兜底 |
 | `recall_precision()` 只在两类标签上算精度（M3） | 标签文件只标注全局变量与跨模块契约（SPEC M4 验收 1 与 A-9 的原话），`side_effect`/`test_impact` 属咨询性条目 | 精度口径变窄，但在文档与 docstring 里写明；负对照测试保证精度仍会随代码变化 |
+| `config/config.json` 新增 `card_item_max_chars`（M4） | SPEC M5 验收 2 要求"每条 ≤ 120 字符"，而 AGENTS §2.4 禁止把这类阈值写死在代码里 | 纯附加键；`Config` 增加同名字段，`load()` 的"缺键即报错"语义不变，旧 config 会明确失败而不是静默取默认值 |
+| `Gate.__init__` 增加可选 `clock`（M4） | `toggle()` 必须返回 `dwell_ms`（机械确认指标要用），而 monotonic 时钟无法在测试里断言具体毫秒数 | 关键字参数带默认值，PLAN 的 `Gate(card)` 调用方式不变 |
+| 新增 `PassThroughGate(Gate)`（M4） | SPEC M6 验收 4 要求 C0 "走同一个接口、`blocked=false` 恒成立"，但 PLAN 的 `Card` 没有条件字段、`Gate` 也没有条件参数 | 子类只覆写 `decide()`，接口完全一致；C0 的卡由 `build(..., "C0")` 产出，`n_items=0` |
+| 新增 `issue_token()` / `consume_token()`（M4） | SPEC M6 的输出清单要求"授权令牌（一次性）"，PLAN 的接口只列了 `toggle/decide/open` | 两个附加方法，令牌在阻塞时为 `None`、任何勾选变化即失效，单次使用后清除 |
+| 新增 `CardItem` 数据类（M4） | PLAN 只写了 `Card.items`，条目形状由 SPEC M5 的输出定义（`item_id/statement/category/affected_symbol/evidence_ref/required`） | 与 SPEC 的 `card_view.items` 字段一一对应，无额外字段 |
 
 ---
 
@@ -138,5 +170,6 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 - 影响分析器（SPEC M4 / PLAN M3）**已实现**，但它只做静态分析：不做语义推断、不读 diff、不调模型。
   它能识别的"契约"是"被 ≥ 2 个包内模块读取的顶层值"这一操作化定义（见 `govern/impact.py` docstring），
   因此它**不会**发现"两个模块各自实现同一算法"这类纯语义重复。
-- 评估卡、门控、日志、LLM 客户端（M4–M7）尚未实现，所以"用户动作 → 系统响应"的交互链路目前不可演示。
+- 评估卡与门控（SPEC M5/M6 / PLAN M4）**已实现**，但还**没有接线到一次真正的会话**：现在只能通过 `python -m govern.card` 渲染、通过 `python -m govern.gate --selftest` 复演不变量。
+  日志、LLM 客户端、会话控制器、Web 界面（M5/M6/M7/M9）尚未实现，所以"用户动作 → 系统响应"的交互链路目前**不可演示**，不得声称可演示。
 - 六个种子仓库是**自建语料**（Q4 拍板的结果），不是真实开源仓库的历史；它们只用于让"影响分析 recall / precision"可判分。
