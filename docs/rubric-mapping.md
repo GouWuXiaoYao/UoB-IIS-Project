@@ -353,6 +353,8 @@ ok: 12 session logs, 4 figures
 | `static/index.html` | 新增（M9） | 262 行原生 JS，无构建步骤；左 `main#transcript` / 右 `aside`；`renderCard()` `:87`、`updateCounter()` `:152`、`labelFor()` `:169`、`toggle()` `:166`；`?playback=1` 从服务端状态重绘 `:257` | `tests/test_web.py` 的 IndexTests 与 `test_the_page_never_ships_a_pre_ticked_checkbox`（`:323`） |
 | `tools/make_storyboard.py` | 新增（M9 验收的取证工具） | `capture()`、`shoot()`（无头 Chrome）、`check()`；启动**真实**服务器在 `port=0`，按人手顺序打 API，再拍照 | `python tools/make_storyboard.py --check` → `ok: 3 storyboard frame(s) in storyboards` |
 | `storyboards/` | 交付物（M9） | `1-c1-gate-closed.png`、`2-c1-gate-open.png`、`3-c0-baseline.png` + `README.md`（逐帧的动作/响应/日志序列，以及"这三帧不是人类被试数据"的声明） | 同上；README 里的日志序列由 `python -m govern.log --validate` 同源事件类型核对 |
+| `tools/make_diagram.py` | 新增（报告第 2–3 节配图） | `NODES`（13 个框 → 源文件 + 必须仍存在的符号）、`EDGES`（15 条边 → 代码位置）、`Diagram.node/edge/badge`、`build()`、`check()`、`main()`；用 `analysis/png.py` 作画，无第三方依赖 | `tests/test_diagram.py`（6 条）；`python tools/make_diagram.py --check` → `ok: 13 stages match the source` |
+| `System diagram/` | 交付物（报告引用） | `system-diagram.png`（1300x960，实线=implemented、蓝色虚线=simulated、灰=planned）+ `README.md`（框/边的证据表、控制流、刻意不画的东西、图的局限） | 同上；`test_rebuilding_reproduces_the_shipped_bytes` 保证图与生成器一致 |
 | `corpus/` | 数据 | `corpus/index.json`；`PAIR-01`=`T-L01a`(billing)/`T-L01b`(loans) 层 L；`PAIR-02`=`T-L02a`(ticketing)/`T-L02b`(payroll) 层 M；`PAIR-03`=`T-L03a`(inventory)/`T-L03b`(fleet) 层 H | `test_index_holds_three_pairs`（`tests/test_corpus.py:34`）、`test_every_task_directory_is_complete`（`:51`） |
 
 **三层坏味道的递进（这是"难度"的操作化定义）**

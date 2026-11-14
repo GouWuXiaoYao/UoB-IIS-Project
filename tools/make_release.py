@@ -44,7 +44,7 @@ SKIP_PREFIXES = ("A2_API_KEY", "DSH-", "pytest-cache-files-")
 
 PAYLOAD_DIRS = (
     "govern", "analysis", "experiments", "tools", "tests", "config",
-    "corpus", "recordings", "docs", "static", "storyboards",
+    "corpus", "recordings", "docs", "static", "storyboards", "System diagram",
 )
 PAYLOAD_FILES = ("README.md", "AGENTS.md", "requirements-dev.txt", "pytest.ini", "conditions.yaml")
 
