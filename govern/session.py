@@ -355,6 +355,20 @@ class Session:
     def generate(self) -> llm.Suggestion:
         self._require_started()
         if not self.gate.open():
+            # The refusal itself is data: a blocked attempt must be in the log,
+            # otherwise "how often did people try to skip the gate" is unanswerable.
+            decision = self.gate.decide()
+            self.logger.emit(
+                "gate_decision",
+                **self._where("gate"),
+                card_id=self.card.card_id,
+                confirmed=bool(decision.confirmed),
+                blocked=True,
+                n_required=decision.n_required,
+                n_confirmed=decision.n_confirmed,
+                gate_latency_ms=0,
+            )
+            self._gate_open = False
             raise GateClosed(
                 "the confirmation gate is closed: confirm every required item before generating"
             )
@@ -434,6 +448,18 @@ class Session:
             n_fail=len(failures),
             failing_tests=failures,
         )
+        if self._last_suggestion is not None:
+            # Emitted *before* task_end so that task_end stays the closing event
+            # of a task, the way session_end closes a session.
+            self.logger.emit(
+                "suggestion_scored",
+                **self._where("test"),
+                suggestion_id=self._last_suggestion.suggestion_id,
+                is_correct=score.is_correct(self.baseline, outcome),
+                gold_patch_match=self._gold_match(),
+                scored_by="hidden_tests",
+                scorer_version=outcome.scorer_version,
+            )
         self.logger.emit(
             "task_end",
             **self._where("test"),
@@ -451,16 +477,6 @@ class Session:
             n_edits=self._counts["edits"],
             n_rejects=self._counts["rejects"],
         )
-        if self._last_suggestion is not None:
-            self.logger.emit(
-                "suggestion_scored",
-                **self._where("test"),
-                suggestion_id=self._last_suggestion.suggestion_id,
-                is_correct=score.is_correct(self.baseline, outcome),
-                gold_patch_match=self._gold_match(),
-                scored_by="hidden_tests",
-                scorer_version=outcome.scorer_version,
-            )
         self.phase = "end"
         self._ended = True
         return outcome

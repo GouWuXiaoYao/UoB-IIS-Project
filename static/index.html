@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en" data-app="govern-ui">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Governance prototype — assessment card</title>
+<style>
+  :root { --ink:#12211d; --muted:#5a6b66; --line:#d7dfdc; --accent:#00694e; --warn:#a54100; }
+  body { font:16px/1.55 system-ui, Arial, sans-serif; margin:0; color:var(--ink);
+         display:grid; grid-template-columns:1fr 420px; min-height:100vh; }
+  main { padding:24px; border-right:1px solid var(--line); }
+  aside { padding:24px; background:#f5f7f8; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:0 0 12px; }
+  .turn { margin:8px 0; padding:10px 14px; border-radius:12px; background:#eef1f3; max-width:80%; }
+  .me { background:#003b5c; color:#fff; margin-left:auto; }
+  .note { color:var(--muted); font-size:14px; }
+  .warning { padding:12px; border-left:4px solid var(--warn); background:#fff1e8; color:#5c2500; margin:10px 0; }
+  fieldset { border:1px solid var(--line); border-radius:10px; padding:12px; margin:0 0 12px; background:#fff; }
+  legend { font-weight:600; padding:0 6px; }
+  .item { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-top:1px solid var(--line); }
+  .item:first-of-type { border-top:0; }
+  .item input { margin-top:4px; }
+  .tag { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .req { color:var(--warn); font-size:12px; }
+  button { margin:6px 8px 0 0; padding:9px 14px; border:1px solid var(--accent); background:#fff;
+           color:var(--accent); border-radius:18px; cursor:pointer; font:inherit; }
+  button.primary { background:var(--accent); color:#fff; }
+  button[disabled] { opacity:.45; cursor:not-allowed; }
+  pre { white-space:pre-wrap; background:#0f1f1b; color:#dff3ec; padding:12px; border-radius:10px; font-size:13px; }
+  input[type=text] { width:100%; padding:10px; font:inherit; border:1px solid #bbb; border-radius:8px; box-sizing:border-box; }
+  @media (max-width:760px) { body { grid-template-columns:1fr; } main { border-right:0; border-bottom:1px solid var(--line); } }
+</style>
+
+<main>
+  <h1>Assessment card <span class="tag" id="ctx"></span></h1>
+  <p class="note">Author self-test run (simulated). The model suggests; you confirm before any code is generated.</p>
+  <div id="transcript"></div>
+  <p><input id="msg" type="text" placeholder="Describe the refactoring request, then press Enter" autofocus></p>
+  <div id="after" hidden>
+    <h2>Review the suggestion</h2>
+    <pre id="diff"></pre>
+    <p class="note" id="why"></p>
+    <button id="accept" class="primary">Accept and apply</button>
+    <button id="reject">Reject</button>
+    <button id="finish">Finish task</button>
+    <div id="outcome"></div>
+  </div>
+</main>
+
+<aside>
+  <h2>Assessment card</h2>
+  <div id="card"><p class="note">Nothing yet — send a request first.</p></div>
+  <fieldset id="gate" hidden>
+    <legend>Gating decision</legend>
+    <p class="note" id="counter">0 of 0 confirmed</p>
+    <p class="warning" id="blocked" role="alert" hidden></p>
+    <button id="confirm" class="primary">Confirm and allow generation</button>
+    <button id="generate" disabled>Generate suggestion</button>
+  </fieldset>
+</aside>
+
+<script>
+const el = (id) => document.getElementById(id);
+const ctx = el('ctx'), transcript = el('transcript'), card = el('card');
+const gate = el('gate'), counter = el('counter'), blocked = el('blocked');
+
+let state = { items: [], missing: [], gate_open: false };
+
+function say(text, me) {
+  const d = document.createElement('div');
+  d.className = 'turn' + (me ? ' me' : '');
+  d.textContent = text;
+  transcript.appendChild(d);
+}
+
+async function post(path, payload) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {})
+  });
+  const data = await res.json();
+  if (!res.ok) { throw data; }
+  return data;
+}
+
+function renderCard(view) {
+  state.items = view.items || [];
+  state.missing = view.missing || [];
+  state.gate_open = !!view.gate_open;
+  ctx.textContent = view.condition + ' · ' + view.card_id + ' · ' + view.n_required + ' required';
+
+  card.innerHTML = '';
+  if (!state.items.length) {
+    const p = document.createElement('p');
+    p.className = 'note';
+    p.textContent = 'No assessment card in this condition — generation is not gated.';
+    card.appendChild(p);
+    gate.hidden = false;
+    el('generate').disabled = false;
+    counter.textContent = '0 of 0 confirmed';
+    return;
+  }
+
+  const list = document.createElement('fieldset');
+  const legend = document.createElement('legend');
+  legend.textContent = 'Confirm what this change touches';
+  list.appendChild(legend);
+
+  state.items.forEach((item) => {
+    const row = document.createElement('label');
+    row.className = 'item';
+
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.setAttribute('data-item-id', item.item_id);
+    box.checked = !!item.checked;            // server state only; never pre-ticked on load
+    box.addEventListener('change', () => toggle(item.item_id));
+
+    const body = document.createElement('span');
+    const stmt = document.createElement('span');
+    stmt.textContent = item.statement;
+    const meta = document.createElement('span');
+    meta.className = 'tag';
+    meta.textContent = item.category + ' · ' + item.affected_symbol +
+      (item.required ? ' · ' : '');
+    body.appendChild(stmt);
+    body.appendChild(document.createElement('br'));
+    body.appendChild(meta);
+    if (item.required) {
+      const req = document.createElement('span');
+      req.className = 'req';
+      req.textContent = 'required';
+      body.appendChild(req);
+    }
+    row.appendChild(box);
+    row.appendChild(body);
+    list.appendChild(row);
+  });
+
+  card.appendChild(list);
+  gate.hidden = false;
+  updateCounter();
+}
+
+function updateCounter() {
+  const total = state.items.filter((i) => i.required).length;
+  const done = total - state.missing.length;
+  counter.textContent = done + ' of ' + total + ' confirmed';
+  el('generate').disabled = !state.gate_open;
+  if (state.missing.length && !state.gate_open) {
+    blocked.hidden = false;
+    blocked.textContent = 'Generation is blocked until you confirm: ' +
+      state.missing.map(labelFor).join('; ') + '. Nothing has been generated.';
+  } else {
+    blocked.hidden = true;
+    blocked.textContent = '';
+  }
+}
+
+function labelFor(itemId) {
+  const item = state.items.find((i) => i.item_id === itemId);
+  return item ? item.statement : itemId;
+}
+
+async function toggle(itemId) {
+  try {
+    const body = await post('/api/toggle', { item_id: itemId });
+    state.missing = body.missing;
+    state.gate_open = body.gate_open;
+    state.items.forEach((i) => { if (i.item_id === itemId) { i.checked = body.checked; } });
+    updateCounter();
+  } catch (err) {
+    say('Could not record that tick: ' + (err.detail || err.error));
+  }
+}
+
+async function start(text) {
+  try {
+    const body = await post('/api/prompt', { text: text });
+    renderCard(body);
+    updateCounter();
+    say('Request recorded. ' + (body.items.length ? 'The card lists ' + body.n_items +
+        ' impact items; confirm them before generating.' : 'No card in this condition.'));
+  } catch (err) {
+    say('Request rejected: ' + (err.detail || err.error));
+  }
+}
+
+el('confirm').addEventListener('click', async () => {
+  try {
+    const body = await post('/api/confirm', {});
+    state.missing = body.missing;
+    state.gate_open = body.gate_open;
+    updateCounter();
+    say(body.blocked
+      ? 'Confirmation blocked: ' + body.n_confirmed + ' of ' + body.n_required + ' confirmed.'
+      : 'Confirmed ' + body.n_confirmed + ' of ' + body.n_required + '. Generation is now allowed.');
+  } catch (err) {
+    say('Confirmation failed: ' + (err.detail || err.error));
+  }
+});
+
+el('generate').addEventListener('click', async () => {
+  try {
+    const body = await post('/api/generate', {});
+    el('after').hidden = false;
+    el('diff').textContent = body.patch_diff;
+    el('why').textContent = body.rationale_text;
+    el('diff').setAttribute('data-suggestion-id', body.suggestion_id);
+    say('Suggestion ' + body.suggestion_id + ' shown for review (not applied).');
+  } catch (err) {
+    say('Generation refused: ' + (err.error === 'gate_closed'
+      ? 'confirm every required item first (' + (err.missing || []).join(', ') + ')'
+      : (err.detail || err.error)));
+  }
+});
+
+async function act(action) {
+  const suggestionId = el('diff').getAttribute('data-suggestion-id');
+  try {
+    const body = await post('/api/act', { suggestion_id: suggestionId, action: action, dwell_ms: 900 });
+    say(body.applied ? 'Patch applied to the working copy.' : 'Suggestion rejected; the working copy is untouched.');
+  } catch (err) {
+    say('Action failed: ' + (err.detail || err.error));
+  }
+}
+
+el('accept').addEventListener('click', () => act('accept'));
+el('reject').addEventListener('click', () => act('reject'));
+
+el('finish').addEventListener('click', async () => {
+  try {
+    const body = await post('/api/end', { submitted: true });
+    const box = el('outcome');
+    box.innerHTML = '';
+    const p = document.createElement('p');
+    p.className = body.tests_pass ? 'note' : 'warning';
+    p.textContent = 'Hidden suite: ' + (body.tests_pass ? 'passing' : body.n_fail + ' failing') +
+      ' · lines +' + body.lines_added + '/-' + body.lines_removed +
+      ' · debt ' + body.debt_delta + ' · vulnerabilities ' + body.vuln_delta;
+    box.appendChild(p);
+  } catch (err) {
+    say('Could not finish: ' + (err.detail || err.error));
+  }
+});
+
+el('msg').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && event.target.value.trim()) {
+    const text = event.target.value;
+    event.target.value = '';
+    say(text, true);
+    start(text);
+  }
+});
+
+// ?playback=1 re-renders the card from server state alone. It is how the
+// storyboard capture photographs a state nobody clicked through, and it is
+// also what a reloaded tab would need to resume without losing the card.
+if (new URLSearchParams(location.search).has('playback')) {
+  fetch('/api/card')
+    .then((res) => res.json())
+    .then((view) => {
+      renderCard(view);
+      updateCounter();
+      say('Reloaded from server state. The request text is not stored, so it cannot be shown again.', false);
+    })
+    .catch(() => say('Could not reload the card from the server.'));
+}
+</script>
+</html>

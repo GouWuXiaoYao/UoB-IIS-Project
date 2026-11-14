@@ -300,7 +300,9 @@ class FlowTests(unittest.TestCase):
             sess.act(suggestion.suggestion_id, "accept", dwell_ms=1500)
             sess.end(submitted=True)
             kinds = [e["event_type"] for e in _events(sess.logger)[-3:]]
-            self.assertEqual(kinds, ["test_run", "task_end", "suggestion_scored"])
+            # task_end closes the task, so the score for the suggestion it
+            # produced has to be written first (symmetric with session_end).
+            self.assertEqual(kinds, ["test_run", "suggestion_scored", "task_end"])
 
     def test_every_emitted_event_passes_the_schema_validator(self):
         with scratch_dir("schema") as tmp:

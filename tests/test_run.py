@@ -9,6 +9,7 @@ import unittest
 import uuid
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from govern import config, run, session, tasks
 from tests._scratch import scratch_dir
@@ -104,6 +105,36 @@ class SessionCliTests(unittest.TestCase):
         )
         self.assertEqual(code, run.EXIT_USAGE)
         self.assertIn("T-NOPE", out)
+
+
+class WebCliTests(unittest.TestCase):
+    """``--port`` serves the UI instead of rehearsing; the server is stubbed here.
+
+    The HTTP transport itself is covered in ``tests/test_web.py``; what matters
+    at this layer is that the CLI builds and starts the same ``Session`` the
+    other paths use, and closes the log honestly when the server stops.
+    """
+
+    def test_port_serves_the_session_it_started(self):
+        run_id = _run_id()
+        try:
+            with mock.patch.object(run.web, "serve", return_value=0) as serve:
+                code, out = _call(
+                    "--session", "S-UI1", "--participant", "P01", "--condition", "C1",
+                    "--task", "T-L01a", "--port", "8123", "--run-id", run_id,
+                )
+            self.assertEqual(code, 0, out)
+            self.assertEqual(serve.call_args.args[1], 8123)
+            served = serve.call_args.args[0]
+            self.assertEqual(served.condition, "C1")
+            kinds = [json.loads(line)["event_type"] for line in _logs(run_id)[0].read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(kinds[0], "session_start")
+            self.assertEqual(kinds[-1], "session_end")
+            end = json.loads(_logs(run_id)[0].read_text(encoding="utf-8").splitlines()[-1])
+            self.assertFalse(end["completed_all"])
+            self.assertTrue(end["withdrawn"], "leaving before 'Finish' is a withdrawal, not a completion")
+        finally:
+            _clean(run_id)
 
 
 class BatchCliTests(unittest.TestCase):

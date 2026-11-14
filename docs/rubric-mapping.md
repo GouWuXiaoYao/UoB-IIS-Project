@@ -169,6 +169,31 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ---
 
+## 2h. Web UI 验收 → 证据（PLAN 里程碑 M9）
+
+验收命令：`python -m govern.web --selftest` → `ok: 6 routes wired, card rendered from session state`；`python tools/make_storyboard.py --check` → `ok: 3 storyboard frame(s)`。
+
+| # | PLAN M9 的要求 | 证据 | 覆盖测试 |
+|---|---|---|---|
+| M9-1 | 页面来自 `static/index.html`，左对话 / 右卡片，原生 JS，`http.server` 提供 | `govern/web.py:53` `index()` 只读 `static/index.html`（262 行，无构建步骤）；`Handler`（`:207`）与 `GovernServer`（`:259`）；`make_server()`（`:269`） | `test_the_page_is_served_from_static`（`tests/test_web.py:131`）、`test_the_page_declares_the_backend_it_talks_to`（`:137`） |
+| M9-2 | 卡片带复选框，勾选与取消都落日志，计数与"还差哪些"实时更新 | `web.py:104` `toggle()` 返回 `checked/gate_open/missing`；`static/index.html:166` `toggle()` 把返回的 `missing` 写回 `state` | `test_prompt_returns_every_card_item_unchecked`（`:146`）、`test_toggle_returns_the_running_count_and_the_missing_items`（`:159`）、`test_an_unknown_item_is_a_400`（`:167`） |
+| M9-3 | 未勾满时**拦截**生成：HTTP 409 + 日志里留下 `gate_decision(blocked=true)` | `web.py:136` 捕获 `session.GateClosed` → 409 `gate_closed` 附 `missing`；`govern/session.py:362` 在抛之前先 `emit("gate_decision", blocked=True, …)`，否则"有多少次想绕过门"在数据上无解 | `test_generating_before_confirming_is_refused`（`:175`）、`test_generating_after_a_partial_confirmation_is_refused`（`:182`）、`test_a_blocked_decision_is_logged_as_blocked`（`:199`） |
+| M9-4 | C0 基线**没有卡、也不设门**（对照臂必须真的无门，而不是把卡禁用） | `web.py:56` `card_view()` 对 C0 返回 `n_items=0`；`Gate` 在 C0 用 `PassThroughGate`（`govern/gate.py:105`） | `test_the_baseline_condition_shows_no_card`（`:210`）、`test_the_baseline_condition_generates_without_confirming`（`:216`） |
+| M9-5 | 手工走完 C1 与 C0，产出 3 张 storyboard 截图 | `storyboards/1-c1-gate-closed.png`、`2-c1-gate-open.png`、`3-c0-baseline.png`：由 `tools/make_storyboard.py` 启动**真实**服务器、按人手的调用顺序驱动、再用无头 Chrome 拍照；`storyboards/README.md` 记录每帧的动作/响应/日志序列 | `python tools/make_storyboard.py --check`（三帧存在且非空）；`test_port_serves_the_session_it_started`（`tests/test_run.py:118`）证明 CLI 的 `--port` 走的是同一个 `Session` |
+
+**页面上的两条安全性质（`tests/test_web.py` HygieneTests）**
+
+1. 只绑 `127.0.0.1`（`make_server` 的默认 host），不对外监听 —— `test_the_server_binds_loopback_only`（`:299`）。
+2. 复选框**从不预勾选**：`static/index.html:117` 的 `box.checked = !!item.checked` 只从服务端状态同步，首次渲染必为未勾选 —— `test_the_page_never_ships_a_pre_ticked_checkbox`（`:323`）。这条与 `tests/test_card.py:108` 是同一个断言的两个层（HTML 字符串 / 真实 DOM 属性），因为 M4 时曾经写错过一次（渲染成 `checked disabled`，等于把 A1 说的"机械勾选"失败模式做进界面）。
+
+**如实记录（M9 的边界）**
+
+- 三帧都是**作者自测**驱动出的界面，`runs/` 不入库，页面里没有任何人类被试数据。
+- 帧里的左栏是空的：请求正文不落盘（Q7 只存 hash + 长度），所以从服务端状态重绘的页面**重放不出**当时输入了什么。`static/index.html:257` 的 `?playback=1` 分支把这句话直接写在气泡里，而不是编一段对话。
+- 没有浏览器自动化测试：`tests/test_web.py` 测的是 HTTP 契约与页面源码，交互后的视觉效果由 `tools/make_storyboard.py` 的三帧静态覆盖；点击后的 JS 行为不在这套自动化里。
+
+---
+
 ## 3. 模块级证据
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
@@ -190,6 +215,10 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | `tools/scan_secrets.py` | 新增（M6 = SPEC 3.11 第 5 条） | `_PATTERNS` `:38`；`scan_text()` `:50`；`scan_paths(paths, root=None)` `:67`；`tracked_files()` `:99`；`main()` `:123` | `tests/test_secrets.py`（14 条）；`python tools/scan_secrets.py` → `ok: 0 finding(s) in 110 files` |
 | `tools/make_recordings.py` | 新增（M6，PLAN 未列） | `suggest()` `:70`；`recording()` `:91`；`build()` `:112`；`selftest()` `:129` | `python tools/make_recordings.py --selftest` → `ok: 6 recordings match the factory` |
 | `recordings/` | 数据（`source: "sim"`） | `recordings/qwen2.5-coder-7b/<request_sha256>.json`，6 个任务各一条 | `test_the_repository_ships_one_recording_per_task`（`tests/test_llm.py:381`）、`test_the_shipped_recordings_match_the_factory`（`:393`） |
+| `govern/web.py` | 新增（M9 = PLAN M9） | `App` `:38`（`card_view()` `:56`、`state()` `:81`、`card()` `:88`、路由表 `_GET`/`_POST` `:177`、`handle()` `:186` 永不抛）；`Handler` `:207`；`GovernServer` `:259`；`make_server()` `:269`；`serve()` `:274`；`_selftest()` `:288` | `tests/test_web.py`（22 条：页面/路由、卡片、门控、C0 基线、动作、结束、状态、卫生）；`python -m govern.web --selftest` → `ok: 6 routes wired, card rendered from session state` |
+| `static/index.html` | 新增（M9） | 262 行原生 JS，无构建步骤；左 `main#transcript` / 右 `aside`；`renderCard()` `:87`、`updateCounter()` `:152`、`labelFor()` `:169`、`toggle()` `:166`；`?playback=1` 从服务端状态重绘 `:257` | `tests/test_web.py` 的 IndexTests 与 `test_the_page_never_ships_a_pre_ticked_checkbox`（`:323`） |
+| `tools/make_storyboard.py` | 新增（M9 验收的取证工具） | `capture()`、`shoot()`（无头 Chrome）、`check()`；启动**真实**服务器在 `port=0`，按人手顺序打 API，再拍照 | `python tools/make_storyboard.py --check` → `ok: 3 storyboard frame(s) in storyboards` |
+| `storyboards/` | 交付物（M9） | `1-c1-gate-closed.png`、`2-c1-gate-open.png`、`3-c0-baseline.png` + `README.md`（逐帧的动作/响应/日志序列，以及"这三帧不是人类被试数据"的声明） | 同上；README 里的日志序列由 `python -m govern.log --validate` 同源事件类型核对 |
 | `corpus/` | 数据 | `corpus/index.json`；`PAIR-01`=`T-L01a`(billing)/`T-L01b`(loans) 层 L；`PAIR-02`=`T-L02a`(ticketing)/`T-L02b`(payroll) 层 M；`PAIR-03`=`T-L03a`(inventory)/`T-L03b`(fleet) 层 H | `test_index_holds_three_pairs`（`tests/test_corpus.py:34`）、`test_every_task_directory_is_complete`（`:51`） |
 
 **三层坏味道的递进（这是"难度"的操作化定义）**
@@ -250,6 +279,12 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 # 一次完整的作者自测会话（SIM；写 runs/R-ADHOC/logs/<participant>/<session>.jsonl）
 .\.venv\Scripts\python.exe -m govern.run --session S-001 --participant P01 --condition C1 --task T-L01a
 .\.venv\Scripts\python.exe -m govern.log --validate --run-dir runs\R-ADHOC
+
+# Web UI 验收（M9）：自检 + 真浏览器走两条路径
+.\.venv\Scripts\python.exe -m govern.web --selftest
+.\.venv\Scripts\python.exe -m govern.run --session S-UI1 --participant P01 --condition C1 --task T-L01a --port 8000
+python tools\make_storyboard.py            # 重新生成三张 storyboard 帧（需 Chrome 或 Edge）
+python tools\make_storyboard.py --check    # 只核对三帧存在且非空
 ```
 
 > 说明：`.venv/` 只是本机开发工具链（pytest 属**测试期**依赖，不进入运行时）；
@@ -295,7 +330,7 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | `score.evaluate()` 增加可选 `hidden_run=`（M8） | 会话结束时已经用 `hidden.run()` 跑过一次隐藏套件（要写 `test_run` 事件），若 `evaluate()` 再跑一次，同一份提交要付两倍子进程时间，还可能因超时给出一致性差异 | 传入时直接复用 `(tests_pass, failures)`；不传时行为与 M7 完全一致 |
 | `config/config.json` 新增 `alpha_sim`（M8） | 卡方判定的显著性水平属实验参数，AGENTS §2.4 禁止写进代码 | 纯附加键；`Config` 加同名字段，`load()` 仍会拒绝缺键 |
 | `--selftest` 输出从 `0 cards` 改为真实卡数（M8） | M0 时卡片模块尚不存在，占位值 `0 cards` 会与 SPEC M5 的"六个任务各产出一张卡"自相矛盾 | 现输出 `ok: 6 tasks, 6 cards`；`tests/test_smoke.py` 与 `tests/test_run.py` 都以该行为准 |
-| `--port` 走 `EXIT_NOT_READY`（M8） | M9 之前 Web UI 不存在；把"未实现"报成用法错误（退出码 2）会掩盖真实原因 | 新增 `_not_ready()`（`govern/run.py:155`），stderr 明说 "not implemented yet"；M9 落地时直接替换该分支 |
+| `--port` 走 `EXIT_NOT_READY`（M8）→ **已被 M9 取代** | M9 之前 Web UI 不存在；把"未实现"报成用法错误（退出码 2）会掩盖真实原因 | M8 期间新增 `_not_ready()` 并保留 `EXIT_NOT_READY = 3`；M9 落地后该分支改为真正启动服务器，`_not_ready()` 已删除 |
 | `govern.run --simulate N` 只写 `runs/_sim/sim.json`（M8） | 模拟 100 次分配不应产生 600 个空会话日志（`runs/` 不入库，但也没必要写噪声） | 报告文件含 n/counts/chi2/p/alpha/balanced/pairs；`--simulate` 不写任何 `.jsonl` |
 | 新增 `tools/make_recordings.py` 与 `recordings/`（M6） | 本机没有任何 API 凭据，若等真实调用就永远没有可复现的 replay；SPEC M3 验收 2 要求"录制完整可复现" | 录制由工厂从 gold patch 派生并标 `source: "sim"`，可逐字节重建（`--selftest` 校验）；这是**模拟**建议，不是模型输出，报告里如实说明 |
 | `Client.__init__` 增加可选 `logger`（M6） | `generation_request` / `integrity_event` 必须有地方写；PLAN 的构造签名没有日志参数 | 关键字参数默认 `None`（不写日志），`Client(config, mode, recordings, api_key_env)` 调用方式不变 |
@@ -303,6 +338,11 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 | 新增 `govern/hidden.py`（M7） | 隐藏套件原来由 `govern/corpus.py` 用 `python -m pytest` 跑（需要 `.venv`）。AGENTS §1.1 要求"零第三方运行时依赖"，且硬规则 1 的验收命令是裸 `python -m unittest discover`——实测在裸 Python 上 `corpus --check` 直接失败（`No module named pytest`） | 抽出标准库子解释器运行器，`corpus` 与 `score` 共用；pytest 回归为**仅测试期**工具。副作用：`corpus --check` 的 `baseline=` 原因文本变长为 `test_x.py::test_y: AssertionError: …`（更精确，汇总行不变） |
 | `corpus._run_hidden()` 改为调用 `hidden.run()`（M7） | 同上；另外 pytest 的退出码含义与"套件挂死/读不出报告"混在一起，超时也无法区分 | 返回码语义变成 `0 通过 / 1 有失败 / 2 未完成`；`_failure_reason()` 未改动，仍能从失败清单里取第一行 |
 | `debt_delta` 以 float 写入（M7） | SPEC 4.3 的 `task_end.debt_delta` 是 float，`log.validate()` 按 float 校验；整数加权计数之差在 schema 上会被判类型错 | `Outcome.debt_delta: float`，`evaluate()` 里显式 `float(...)`；`vuln_delta` 仍是 int |
+| 新增只读路由 `GET /api/card`（M9） | `GET /api/state` 只报 `card_id/confirmed_ids/gate_open/phase/ended`，**不含条目**，所以从服务端状态重绘页面时无法还原复选框与文案；storyboard 取证也需要这一点 | 纯附加只读路由，返回 `card_view()`；`/api/state` 的字段与语义不变 |
+| `static/index.html` 的 `?playback=1` 分支（M9） | 页面原本只在用户操作后渲染；要让"重载后仍是同一状态"和"无人点击也能拍照"成立，必须有从服务端状态重绘的入口 | 只在带该查询参数时触发，正常访问路径的交互行为不变；顺带证明 SPEC M2 验收 4 在 UI 层也成立（状态可只从日志重建） |
+| 拦截提示按**陈述**而非 item_id 列出未确认项（M9） | 第一版直接渲染服务端 `missing` 的 `item_id`（`T-L01a-side_effect-003`），人能读的字面意义为零，等于把"机械勾选"换个形式又做了一遍 | 只改前端展示（`labelFor()`）；`/api/toggle` 与 `/api/generate` 返回的 `missing` 仍是 `item_id` 列表，API 契约不变 |
+| `_close()` 增加 `withdrawn` 参数（M9） | UI 模式下用户可能没点 Finish 就关掉页面；把它记成"完成"就是伪造数据 | 位置参数与默认值向后兼容；未完成时 `completed_all=false`、`withdrawn=true` |
+| `--port` 要求同时给 `--session` 与 `--task`（M9） | 服务器一次只服务一个会话，缺会话就没有可展示的对象；默认值会悄悄造出一个没人确认过的会话 | 缺参数 → `EXIT_USAGE` 并说明原因；`test_port_without_a_session_is_a_usage_error`（`tests/test_smoke.py:64`） |
 
 ---
 
@@ -320,6 +360,7 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
   - 已实测的覆盖缺口：六类规则**测不到**轻层语料的坏味道（浮点金额、模块级缓存、语义重复的税额推导），L 层 `debt=0`，M=3，H=8（加权）。因此"债务下降"只在 M/H 层可测；L 层靠隐藏测试与行数指标。这一条不得在报告里含糊成"每层都能测出债务下降"。
 - 端到端指标重算（SPEC M10 `analysis/`）是 **N/A**（SPEC 3.0 交付集），所以"由日志重算全部指标"这条链路**没有实现**；`govern.log --purge` 之后无法重算依赖已删数据的结论，这一点在 SPEC M7 验收 7 里已如实降级记录。
 - 会话控制器与 CLI（SPEC M8 / PLAN M8）**已实现**，但它跑的是**作者自测**会话：确认者是终端用户本人，不是招募来的被试；`--session`/`--batch` 产出的日志是 SIM 数据，不得当作被试数据汇报。
-- **Web 界面（SPEC M9 / PLAN M9）尚未实现**：`--port` 目前明确返回"not implemented yet"（`govern/run.py:155` 的 `_not_ready()`）。因此现在还没有可演示的浏览器交互，也没有由真实会话日志驱动的前端；storyboard 里的界面属 **planned**。
+- **Web 界面（SPEC M9 / PLAN M9）已实现**：`python -m govern.run --session … --task … --port 8000` 启动本地服务器（只绑 `127.0.0.1`），页面分左右两栏，复选框从不预勾选，未勾满时生成被 409 拒绝且拒绝本身进日志，C0 走无门路径。三张 storyboard 帧是**真实服务器响应**的无头浏览器照片（`tools/make_storyboard.py`），不是绘制稿；但交互后的 JS 行为没有浏览器自动化测试覆盖——`tests/test_web.py` 测的是 HTTP 契约与页面源码。
+- **UI 里的会话仍是作者自测**：`runs/` 不入库，页面里没有任何人类被试数据；帧中的左栏为空，因为请求正文按 Q7 不落盘，重绘不出当时的输入。
 - M7 验收 7 的**后半句**（重算 `analysis/` 时报告哪些结论依赖已删除数据）未实现：`analysis/`（SPEC M10）按 Q8 是 **N/A**，本期没有重算脚本，因此 `purge` 只交付"删除清单"这一半。
 - 六个种子仓库是**自建语料**（Q4 拍板的结果），不是真实开源仓库的历史；它们只用于让"影响分析 recall / precision"可判分。

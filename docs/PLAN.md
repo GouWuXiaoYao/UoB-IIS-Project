@@ -1,7 +1,8 @@
 # A2 治理原型实现方案
 
 > 状态：**2026-11-14 已批准**。依据 [docs/SPEC.md](SPEC.md)。实施顺序见 §9，每步独立验收。
-> 本期交付 MUST：M1/M3/M4/M5/M6/M7/M8/M11；M2 为 SIM；M9 为 PLAN；M10 为 N/A。
+> 本期交付（按 **SPEC 模块号**）：MUST = M1/M3/M4/M5/M6/M7/M8/M11；SIM = M2；PLAN = M9（分析管线）；N/A = M10（参与者管理）。
+> 本文件的 M0–M11 是**里程碑号**，与 SPEC 模块号不是一套：里程碑 M9 = Web UI，已实现（见 §9 该行）。
 
 ## 1. 目标与完成定义
 
@@ -18,7 +19,7 @@
 | 5 | 无密钥无端点 | `python tools/scan_secrets.py` 零命中 |
 | 6 | 溯源可校验 | `python -m govern.provenance --check` |
 
-**不做**（PLAN）：M9 分析管线与 H1–H7 统计。**不实现**（N/A）：M10 参与者管理。不采集任何人类数据。
+**不做**（SPEC M9：分析管线与 H1–H7 统计；按 Q8 标 PLAN，本期无数据分析脚本）。**不实现**（N/A）：SPEC M10 的参与者管理模块。不采集任何人类数据。
 
 ## 2. 实测环境约束（这些事实决定了下面的选型）
 
@@ -251,7 +252,7 @@ C0 走完全相同的路径，只有 `Gate.decide` 恒 `blocked=false`——保�
 | M6 | LLM 客户端（M3） | `govern/llm.py`、`recordings/`、`tools/scan_secrets.py`、`tools/make_recordings.py` | `python -m govern.llm --selftest` → replay 10 次 hash 全等、无网络；`scan_secrets` 零命中。**已完成（2026-11-14）**：`ok: 6 recordings, 10 replays each, 6/6 identical, no network used`、`ok: 0 finding(s) in 105 files`；录制为作者模拟（`source: "sim"`），证据见 `docs/rubric-mapping.md` §2e | 2h |
 | M7 | 评估器（M8） | `govern/score.py`、`govern/hidden.py`、`config/rules.json` | `python -m govern.score --selftest` → gold 全绿、干净样本 0、六类规则各有正反例。**已完成（2026-11-14）**：`ok: 6 rules (complexity, duplication, bare_except, hardcoded_secret, eval_usage, sql_concat) with positive and negative fixtures, gold 6/6, clean repository 0 debt`；隐藏套件改由标准库子进程运行器执行（`ok: hidden suite runner reports pass/fail in a child interpreter`），`corpus --check` 因此不再依赖 pytest；证据见 `docs/rubric-mapping.md` §2f | 2h |
 | M8 | 编排 + CLI（M2） | `govern/session.py`、`govern/run.py`、`config/schedule.json` | `--simulate 100` 卡方 p>0.05；杀进程后 `--resume` 的 `seq` 连续。**已完成（2026-11-14）**：`ok: simulated 100 assignments, C0=300 C1=300 chi2 p=1.000 (balanced at alpha=0.05), every pair in both conditions: yes`；`govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000`；续跑由 `test_checkpoint_then_resume_continues_the_sequence` 与 `test_resume_finishes_a_checkpointed_session` 逐行断言 `seq`；证据见 `docs/rubric-mapping.md` §2g | 2h |
-| M9 | Web UI 集成 | `govern/web.py`、`static/index.html` | 手工走完 C1 与 C0 两条路径，产出 3 张 storyboard 截图 | 2h |
+| M9 | Web UI 集成 | `govern/web.py`、`static/index.html`、`tools/make_storyboard.py` | **已完成**：手工路径由脚本代走——真实服务器 + 无头 Chrome，`python tools/make_storyboard.py --check` → `ok: 3 storyboard frame(s)`；`python -m govern.web --selftest` → `ok: 6 routes wired, card rendered from session state` | 2h |
 | M10 | 溯源与文档 | `docs/PROVENANCE.md`、`govern/provenance.py`、README | `python -m govern.provenance --check`；故意删一条 assisted 的 check 字段 → 必须非零退出 | 1h |
 | M11 | 端到端冻结 | `--dry-run`、`--batch` 全通；ZIP + `SHA256SUMS` | 六条完成定义逐条跑一遍 | 1h |
 
@@ -266,7 +267,7 @@ C0 走完全相同的路径，只有 `Gate.decide` 恒 `blocked=false`——保�
 | R3 | 真实 API 限流/不可用/模型漂移 | M6 录制失败 | `replay` 是交付默认；录制一次性完成后冻结，报告中标明模型快照日期。**M6 现状**：本机无凭据，6 条录制是工厂派生的**模拟**建议（`source: "sim"`，从 gold patch 去掉一个消费者），因此不存在"真实调用"可漂移；`live` 路径仅由测试里的回环 stub 覆盖 |
 | R4 | 无 pytest → 与工作流文档约定不一致 | M0 | 明确改用 `unittest`，写进 AGENTS.md 并在 README 说明理由；两者可共存（pytest 能发现 unittest 用例） |
 | R5 | Python 3.15 与某库不兼容 | 任何 `import` 失败 | 零第三方运行时依赖，把该风险消除 |
-| R6 | UI 成为时间黑洞 | M9 超 2h | 直接改 `参考代码库/index.html`（已验证可用的 49 行骨架），不引入框架、不做视觉打磨 |
+| R6 | UI 成为时间黑洞 | M9 超 2h | 直接改 `参考代码库/index.html`（已验证可用的 49 行骨架），不引入框架、不做视觉打磨 | **未触发**：M9 在 2h 内完成，未引入框架；storyboard 由脚本取证而非手工截图 |
 | R7 | **无 git → 无法给出 commit/release** | M0 | **已处理（2026-11-14）**：winget 与官方安装器在本机沙箱内均失败（winget 退出码 `-1978335231`，Inno 静默安装无落地文件），改用 **MinGit 2.56.1 便携版**，解压在 `_tools/git`（已被 `.gitignore` 排除），仅通过 `$env:PATH` 前插调用；仓库因此有真实 commit。**同时保留 ZIP + `SHA256SUMS` 快照**，两者在 README 中如实并列说明 |
 | R8 | 门被绕过（最致命，直接命中红线） | M4 负向测试失败 | 生成路径只接受 `Gate.open() == True`；接口层无公开旁路；有专门负向测试。**M4 已验证**：门的全部状态私有、构造时校验卡（`required_ids` 与 `n_required` 不符即 `ValueError`）、确认不跨实例继承、令牌一次性且勾选变化即失效；`tests/test_gate.py` 的 `BypassTests` 五条覆盖 |
 | R9 | 日志被写成半行/丢事件 | M5 | 单行 `write` + `flush` + `fsync`；中途杀掉进程的测试必须在 M5 通过。**已验证**：`tests/test_log.py:302` 模拟撕裂尾行，重开后截掉残段并复用 seq；实现用 `O_APPEND` 单次 `os.write` + `fsync`，不产生 `.tmp` 中转 |

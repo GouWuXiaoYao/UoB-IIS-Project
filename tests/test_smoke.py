@@ -60,13 +60,13 @@ class RunTests(unittest.TestCase):
         self.assertIn("no network used", buf.getvalue())
         self.assertEqual(before, sorted(p.name for p in ROOT.iterdir()))
 
-    def test_unimplemented_flag_exits_non_zero(self) -> None:
-        # The web UI is M9; until then --port must fail loudly rather than pretend.
+    def test_port_without_a_session_is_a_usage_error(self) -> None:
+        # The UI serves exactly one session; without one there is nothing to show.
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             code = run.main(["--port", "8000"])
-        self.assertEqual(code, run.EXIT_NOT_READY)
-        self.assertIn("not implemented yet", err.getvalue())
+        self.assertEqual(code, run.EXIT_USAGE)
+        self.assertIn("--port needs --session", err.getvalue())
 
 
 if __name__ == "__main__":

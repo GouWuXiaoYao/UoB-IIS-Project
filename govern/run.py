@@ -14,7 +14,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from . import __version__, card as card_mod, config, impact, llm, log, session, tasks
+from . import __version__, card as card_mod, config, impact, llm, log, session, tasks, web
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -68,7 +68,7 @@ def _cards() -> int:
     return count
 
 
-def _close(sess: session.Session, started: float, completed: bool) -> None:
+def _close(sess: session.Session, started: float, completed: bool, withdrawn: bool = False) -> None:
     import time as _time
 
     sess.logger.emit(
@@ -80,7 +80,7 @@ def _close(sess: session.Session, started: float, completed: bool) -> None:
         total_elapsed_ms=int((_time.monotonic() - started) * 1000),
         n_tasks_completed=1 if completed else 0,
         completed_all=bool(completed),
-        withdrawn=False,
+        withdrawn=bool(withdrawn),
     )
 
 
@@ -152,11 +152,6 @@ def dry_run(config_path: str | Path = config.DEFAULT_PATH) -> int:
     return EXIT_OK
 
 
-def _not_ready(message: str) -> int:
-    print(f"error: {message}", file=sys.stderr)
-    return EXIT_NOT_READY
-
-
 def _usage(message: str) -> int:
     print(f"error: {message}", file=sys.stderr)
     return EXIT_USAGE
@@ -171,6 +166,7 @@ def single(
     consent: bool = True,
     live: bool = False,
     task_index: int = 0,
+    port: int | None = None,
 ) -> int:
     import time as _time
 
@@ -184,6 +180,8 @@ def single(
     )
     started = _time.monotonic()
     record = consent_for(config.load()) if consent else {**consent_for(config.load()), "consent_given": False}
+    if port is not None:
+        return _browse(sess, record, started, port)
     try:
         summary = _rehearse(sess, record)
     except session.ConsentError as exc:
@@ -197,6 +195,25 @@ def single(
     )
     print(f"log: {sess.logger.path}")
     return EXIT_OK
+
+
+def _browse(sess: session.Session, consent: dict, started: float, port: int) -> int:
+    """Serve the UI for one session and stop when the browser run ends.
+
+    Nothing is rehearsed here: the human drives. The session is closed honestly
+    -- ``withdrawn`` when they left before finishing -- rather than being marked
+    complete just because the server exited.
+    """
+    try:
+        sess.start(consent)
+    except session.ConsentError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    print(f"log: {sess.logger.path}")
+    code = web.serve(sess, port)
+    ended = bool(sess.state()["ended"])
+    _close(sess, started, completed=ended, withdrawn=not ended)
+    return code
 
 
 def batch(
@@ -317,7 +334,25 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.port is not None:
-        return _not_ready("--port belongs to the web UI (M9), which is not implemented yet")
+        if not args.session:
+            return _usage("--port needs --session (and --task): the UI serves one session")
+        if not args.task:
+            return _usage("--port needs --task")
+        try:
+            tasks.by_id(tasks.load_index(), args.task)
+        except KeyError:
+            return _usage(f"unknown task: {args.task}")
+        return single(
+            args.session,
+            args.participant,
+            args.condition,
+            args.task,
+            run_id=args.run_id,
+            consent=not args.no_consent,
+            live=args.live,
+            task_index=args.task_index,
+            port=args.port,
+        )
     if args.selftest:
         return selftest()
     if args.dry_run:
