@@ -1,64 +1,109 @@
 # A2 — Interactive governance prototype for AI-assisted legacy refactoring
 
-This repository implements the experiment programme specified in [docs/SPEC.md](docs/SPEC.md),
-in the order given by [docs/PLAN.md](docs/PLAN.md). The grading evidence trail lives in
-[docs/rubric-mapping.md](docs/rubric-mapping.md).
+This repository implements the programme specified in [docs/SPEC.md](docs/SPEC.md), in the order
+given by [docs/PLAN.md](docs/PLAN.md). The grading evidence trail lives in
+[docs/rubric-mapping.md](docs/rubric-mapping.md), and the development record in
+[docs/PROVENANCE.md](docs/PROVENANCE.md).
 
-**Status:** in progress — milestones M0 (skeleton) and M1 (seed corpus) are implemented and
-verified; M2–M11 are not. Nothing here has collected human data: the prototype is exercised by
-the author and by recorded replay (`SIM`), never by participants.
+**Status:** milestones M0–M10 are implemented and verified; M11 (end-to-end freeze and release
+snapshot) is the only one left. Milestone numbers in `PLAN.md` are not module numbers in
+`SPEC.md`; the mapping is in `PLAN.md` §1.
+
+What is **implemented**: the seed corpus, the AST impact analyser, the assessment card, the
+mandatory confirmation gate, the replay LLM client, the six-rule outcome scorer, the telemetry
+logger, the session orchestrator with deterministic assignment, the local web UI, and the
+provenance checker. What is **simulated**: model output, which is served from recordings whose
+`source` field says `sim` — no external API is called and no key is needed. What is **planned**:
+the analysis pipeline (`SPEC` M9) and the human study (Q1/Q2 — designed, never run).
+**No human data has been collected.** Every session in this repository was run by the author.
+
+Prose word count of this README: **210 words** (code blocks, commands and the layout table excluded).
 
 ## How to run
 
 Only the standard library is needed at runtime (Python 3.11+; verified on 3.15.0).
 
 ```powershell
-python -m govern.run --selftest          # ok: 2 tasks, 0 cards
-python -m govern.corpus --check          # ok: 2 tasks, gold 2/2, labels 2/2
-python -m unittest discover -s tests -q  # standard-library test runner
+python -m govern.run --selftest            # ok: 6 tasks, 6 cards
+python -m govern.corpus --check            # ok: 6 tasks, gold 6/6, pairs 3/3 within 20%
+python -m govern.impact --selftest         # ok: recall=1.00 precision=1.00 on 6 tasks
+python -m govern.llm --selftest            # ok: 6 recordings, 10 replays each, no network used
+python -m govern.log --selftest            # ok: 16 event types, seq from 1, atomic append
+python -m govern.score --selftest          # ok: 6 rules with positive and negative fixtures
+python -m govern.session --selftest        # ok: 10 participants, 6 slots each, deterministic
+python -m govern.web --selftest            # ok: 6 routes wired
+python -m govern.provenance --check        # ok: 20 rows, 11 modules covered
+python -m unittest discover -s tests -q    # standard-library test runner
 ```
 
-`pytest` is a **test-time** dependency only. If it is available:
+A single self-test run, end to end:
 
 ```powershell
-python -m pytest
+python -m govern.run --session S-001 --task T-L01a --condition C1 --participant P01
+python -m govern.run --session S-001 --task T-L01a --condition C1 --participant P01 --port 8000
 ```
 
-## Version identification — commit **and** checksum snapshot
+The second form serves the same session over `http://127.0.0.1:8000`; the page reloads state from
+the event log, so an interrupted session can be resumed with `--resume`.
 
-Two independent identifiers are kept, because neither alone is sufficient here:
+`pytest` is a **test-time** dependency only (installed into `.venv/`, not committed).
+If it is available: `python -m pytest -q`.
 
-1. **Git history.** The repository has real commits (`git log --oneline`). Git for Windows could
-   not be installed system-wide on this machine — `winget` returns `-1978335231` and the Inno
-   installer exits without placing any files, both inside the sandboxed session. Git is therefore
-   used from **MinGit 2.56.1**, unpacked into `_tools/git` and put on `PATH` per shell:
+## Technology stack
 
-   ```powershell
-   $env:PATH = "<repo>\_tools\git\cmd;$env:PATH"
-   git log --oneline
-   ```
+- Python 3.15.0, standard library only. No web framework, no ORM, no LLM SDK at runtime.
+- `http.server` + one HTML file for the UI; plain `unittest` for tests.
+- The LLM is behind `govern/llm.py` with two modes: `replay` (default; reads committed
+  recordings, no network, no key) and `live` (optional; reads `A2_API_KEY` from the environment).
+  Nothing in this repository has ever called a real model API.
+- Git for Windows could not be installed on this machine (`winget` returns `-1978335231`, the
+  installer places no files), so Git runs from MinGit 2.56.1 unpacked into untracked `_tools/git`.
 
-   `_tools/` is deliberately **not committed**; it is local tooling, not project content.
+## Version identification
 
-2. **Checksum snapshot.** From M11 on, every release is also published as a ZIP with a
-   `SHA256SUMS` manifest, so a reviewer without Git can verify exactly which bytes were assessed:
+Two identifiers, because neither alone is enough here:
 
-   ```powershell
-   Get-FileHash -Algorithm SHA256 .\dist\<release>.zip
-   ```
+1. **Git history** — real commits; `git log --oneline`.
+2. **Checksum snapshot** — from M11 each release is also a ZIP with a `SHA256SUMS` manifest, so a
+   reviewer without Git can verify which bytes were assessed.
 
-   A reviewer may cite the commit **or** the snapshot; both identify the same tree.
+## Development record
+
+Significant changes, why they were made and what checked them are recorded in three places:
+`git log --oneline` (one commit per milestone), `docs/PROVENANCE.md` (per-item ledger with
+`origin = original | reused | assisted`, the decision and the check), and
+`docs/rubric-mapping.md` (each acceptance test mapped to a named test case).
+
+Two examples of reviewing and changing AI output, both caught by tests or by reading the result:
+
+- The card first rendered every checkbox as `checked disabled`, which reproduces the "mechanical
+  confirmation" failure the literature warns about. It is now never pre-ticked, and
+  `tests/test_card.py::test_html_never_renders_a_pre_ticked_checkbox` keeps it that way.
+- The hidden-test runner called `pytest`, so `python -m unittest discover` failed on a bare
+  Python install. `govern/hidden.py` now runs suites in a standard-library child interpreter.
+
+## AI assistance
+
+AI tools were used throughout. This assistant generated first drafts of the code, tests and
+documentation; the author set the scope (SPEC Q1–Q8), reviewed every draft, and changed what was
+wrong. Concretely, the author's interventions were: the eight scope rulings, the decision to keep
+`replay` as the only shipped mode, the "no pre-ticked boxes" rule, the removal of the pytest
+dependency, replacing item IDs with statements in the blocked message, and the fixes recorded in
+`docs/PROVENANCE.md` rows P-003, P-005, P-007, P-011, P-014, P-015 and P-017. Output was verified
+by running the commands above, not by inspection alone.
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
-| `govern/` | the system under test: `config`, `tasks`, `run`, `patch`, `corpus` |
-| `corpus/` | seed legacy repositories, hidden suites, gold patches, impact labels |
-| `tools/` | generators (`make_repo.py`) that rebuild `corpus/` deterministically |
-| `tests/` | pytest/unittest suite |
-| `config/` | every threshold, seed and model id — no magic numbers in code |
-| `docs/` | `SPEC.md` (what is being built), `PLAN.md` (in what order), `rubric-mapping.md` (evidence) |
+| `govern/` | the system under test: config, tasks, run, patch, corpus, impact, card, gate, llm, log, score, hidden, session, web, provenance |
+| `corpus/` | six seed legacy repositories, hidden suites, gold patches, impact labels |
+| `tools/` | generators: `make_repo.py` (corpus), `make_recordings.py` (replay), `make_storyboard.py` (screenshots), `scan_secrets.py` |
+| `static/` | `index.html`, the only UI file |
+| `storyboards/` | three captured interaction frames and a frame-by-frame script |
+| `tests/` | 300 test cases across 15 modules |
+| `config/` | every threshold, seed, rule and model id — no magic numbers in code |
+| `docs/` | `SPEC.md`, `PLAN.md`, `PROVENANCE.md`, `rubric-mapping.md` |
 
-Course material (`参考代码库/`, the assignment briefs) is intentionally excluded from the
-repository: it is input, not delivered work, and is acknowledged as reused material in the report.
+Course material (`参考代码库/`, the assignment briefs) is input rather than delivered work; it is
+acknowledged as reused material in `docs/PROVENANCE.md` (rows P-002, P-010, P-018).

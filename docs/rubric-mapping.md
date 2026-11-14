@@ -194,10 +194,38 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 
 ---
 
+## 2i. 开发溯源台账验收 → 证据（SPEC M11 四条，PLAN 里程碑 M10）
+
+验收命令：`python -m govern.provenance --check` → `ok: 20 rows, 11 modules covered (original=8, reused=3, assisted=9)`；`python -m govern.provenance --selftest` → `ok: 11 modules, 3 origins, assisted rows must carry decision + check`。
+
+台账本体是 `docs/PROVENANCE.md`（20 行，M1–M11 全覆盖）。**它是数据，不是叙述**：`govern/provenance.py:78` 的 `parse()` 只认表格行，行内格数不符直接报错（`LedgerError`），`check()`（`:118`）逐条判定。
+
+| # | SPEC M11 验收标准 | 证据 | 覆盖测试 |
+|---|---|---|---|
+| M11-1 | 每个模块至少 1 行，且 `origin` 三个取值都至少出现一次；全填 original 视为未通过 | `govern/provenance.py:41` `MODULES`（M1–M11）与 `:44` `ORIGINS`；`check()` `:127` 报缺模块、`:139` 报"某 origin 从未出现"。实测 `original=8, reused=3, assisted=9` | `test_the_shipped_ledger_covers_every_module`（`tests/test_provenance.py:109`）、`test_a_missing_must_module_is_reported`（`:115`）、`test_a_ledger_with_only_original_rows_is_reported`（`:122`） |
+| M11-2 | 所有 `origin=assisted` 行的 `decision` 与 `check` 均非空，缺一即失败 | `check()` `:150-154`；**markdown 表格用 `-` 表示空**，所以 `_filled()`（`:64`）把 `-`/`—` 也当空——否则一个装饰性横线就能混过"审阅过 AI 输出"的判定 | `test_an_assisted_row_without_a_check_is_reported`（`:131`）、`test_an_assisted_row_without_a_decision_is_reported`（`:136`）、`test_a_dash_does_not_count_as_evidence`（`:141`） |
+| M11-3 | 所有 `origin=reused` 行的 `source` 必须指向工作区内真实存在的路径 | `_source_exists()`（`:104`）按 `root` 解析；`reused` 的 3 行分别指向 `参考代码库/mock_model.py`、`参考代码库/index.html`、`参考代码库/tools.py` | `test_a_reused_row_pointing_at_a_missing_path_is_reported`（`:153`）、`test_a_reused_row_may_point_at_a_directory`（`:160`） |
+| M11-4 | 失败时退出码非 0，且能一行命令在提交前跑 | `main()` `:243`：`0` 通过 / `1` 台账有错 / `2` 台账读不出（不崩栈）。故意删掉 P-003 的 `check` 单元格后实测：`fail: 1 problem(s) … P-003: assisted work needs a check`，`exit=1` | `test_check_exits_zero_on_the_shipped_ledger`（`:174`）、`test_check_exits_non_zero_on_a_broken_ledger`（`:180`）、`test_a_missing_ledger_is_reported_not_crashed`（`:190`） |
+
+**另外两条结构性检查（不在 SPEC 四条内，但缺了台账就能糊弄）**
+
+- `item_id` 重复 → 报错（`check()` `:133`）：否则同一件事可以拆成两行，凑够"三值齐全"。
+- `origin` / `module` 必须是枚举值（`check()` `:145-148`）：否则写 `ai`、`M12` 也能过。
+
+**如实记录（M10 的边界）**
+
+- 台账的 9 条 `assisted` 行如实承认代码草稿由 AI 生成；`decision` 写的是**为什么留下它**，`check` 写的是**怎么验证的**（多数是可复跑的命令或具名测试），不是"已审阅"三个字。
+- `original` 的 8 行记录的是作者本人的裁定与产品红线（Q1–Q8、预勾选禁令、`replay` 唯一交付模式、阈值全部进 config），不是"这行代码我打的字"。
+- 台账里 `P-019`、`P-020` 的 `commit` 列在本提交时尚未有值（台账无法在自己的提交里引用自己的 hash）；由紧随其后的一次文档提交补齐——这一条本身就是"记录要能追溯"的代价，写在这里而不是藏起来。
+
+---
+
 ## 3. 模块级证据
 
 | 模块 | 状态 | 关键入口 | 自检 / 测试 |
 |---|---|---|---|
+| `govern/provenance.py` | 新增（M10 = SPEC M11） | `MODULES` `:41`、`ORIGINS` `:44`、`Row` `:53`、`_filled()` `:64`、`parse()` `:78`、`_source_exists()` `:104`、`check()` `:118`、`summarise()` `:158`、`report()` `:171`、`_selftest()` `:186`、`main()` `:243` | `tests/test_provenance.py`（23 条：解析 6、规则 12、CLI 4、自检 1）；`python -m govern.provenance --check` → `ok: 20 rows, 11 modules covered (original=8, reused=3, assisted=9)` |
+| `docs/PROVENANCE.md` | 交付物（M10） | 20 行台账，M1–M11 全覆盖；`assisted` 行带 decision + check，`reused` 行指向 `参考代码库/` 的真实路径 | `test_the_shipped_ledger_passes`（`tests/test_provenance.py:105`）、`test_the_shipped_ledger_covers_every_module`（`:109`） |
 | `govern/session.py` | 新增（M8 = SPEC M2） | `load_schedule()` `:68`；`assign()` `:83`；`chi_square_p()` `:114`；`simulate()` `:126`；`rebuild_state()` `:165`；`Session` `:216`（`start/submit_prompt/toggle/confirm/generate/act/end/state/checkpoint/resume`）；`_selftest()` `:576` | `tests/test_session.py`（37 条：分配 9、模拟 7、同意 3、流程 11、续跑 4）；`python -m govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000` |
 | `govern/run.py` | 重写（M8） | `log_for()` `:31`；`_rehearse()` `:87`；`selftest()` `:139`；`single()` `:165`；`batch()` `:202`；`resume()` `:242`；`simulate()` `:266`；`main()` `:315` | `tests/test_run.py`（9 条：自检/演练 2、模拟 1、单会话 3、批处理 2）；`python -m govern.run --selftest` → `ok: 6 tasks, 6 cards` |
 | `config/schedule.json` | 新增（M8） | `schedule_id: SCH-01`、`seed: 42`、三对、`P01`–`P10`、`orders` AB/BA 交替 | `test_the_shipped_schedule_covers_every_pair`（`tests/test_session.py:64`）、`test_task_index_is_sequential_from_zero`（`:80`） |
@@ -285,13 +313,17 @@ M2 之后验收对象是 **6 个任务 / 3 对 / 三层难度**，下表逐条�
 .\.venv\Scripts\python.exe -m govern.run --session S-UI1 --participant P01 --condition C1 --task T-L01a --port 8000
 python tools\make_storyboard.py            # 重新生成三张 storyboard 帧（需 Chrome 或 Edge）
 python tools\make_storyboard.py --check    # 只核对三帧存在且非空
+
+# 溯源台账验收（M10 = SPEC M11）：提交前必跑
+.\.venv\Scripts\python.exe -m govern.provenance --check
+.\.venv\Scripts\python.exe -m govern.provenance --selftest
 ```
 
 > 说明：`.venv/` 只是本机开发工具链（pytest 属**测试期**依赖，不进入运行时）；
 > 交付代码在 `govern/` 与 `tools/` 内，只用标准库。隐藏测试套件自 M7 起由
 > `govern/hidden.py` 用标准库在子解释器里跑（不再需要 pytest），所以
 > `python -m govern.corpus --check` 与 `python -m govern.score --selftest`
-> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（254 条）。
+> 在裸 Python 3.11+ 上同样可用；`python -m unittest discover -s tests -q` 也已实测可用（300 条）。
 
 ---
 
@@ -336,6 +368,9 @@ python tools\make_storyboard.py --check    # 只核对三帧存在且非空
 | `Client.__init__` 增加可选 `logger`（M6） | `generation_request` / `integrity_event` 必须有地方写；PLAN 的构造签名没有日志参数 | 关键字参数默认 `None`（不写日志），`Client(config, mode, recordings, api_key_env)` 调用方式不变 |
 | 端点从 `A2_API_BASE` 读取（M6） | PLAN 只规定密钥从环境变量取，没说端点从哪来；写进 config 就违反了"无端点入库" | 与 `A2_API_KEY` 同一策略：只有环境变量，`EndpointMissing` 有单独错误码与测试 |
 | 新增 `govern/hidden.py`（M7） | 隐藏套件原来由 `govern/corpus.py` 用 `python -m pytest` 跑（需要 `.venv`）。AGENTS §1.1 要求"零第三方运行时依赖"，且硬规则 1 的验收命令是裸 `python -m unittest discover`——实测在裸 Python 上 `corpus --check` 直接失败（`No module named pytest`） | 抽出标准库子解释器运行器，`corpus` 与 `score` 共用；pytest 回归为**仅测试期**工具。副作用：`corpus --check` 的 `baseline=` 原因文本变长为 `test_x.py::test_y: AssertionError: …`（更精确，汇总行不变） |
+| 新增 `govern/provenance.py`（M10） | SPEC M11 定义了台账字段与四条验收，但既没说表格格式也没说解析器怎么读——不写解析器就只能靠人眼核对，"一行命令在提交前跑"（验收 4）无从谈起 | 只认 markdown 表格；行内格数不符抛 `LedgerError`（否则 assisted 行丢字段无人发现）；退出码 `0/1/2` 区分通过、台账有错、台账读不出 |
+| `-`/`—` 视为空单元格（M10） | markdown 表格用横线表示"空"，第一版把它当内容，于是把某行 `check` 改成 `-` 仍能通过校验（实测 `exit=0`），这正是台账最容易被糊弄的地方 | `_filled()`（`govern/provenance.py:64`）统一判定；`test_a_dash_does_not_count_as_evidence`（`tests/test_provenance.py:141`）钉死 |
+| 台账增加两条结构检查（M10） | SPEC 四条只管"有没有三值、有没有 decision/check、路径真不真"，没管 `item_id` 重复与枚举拼写——写 `ai` 或把一件事拆成两行都能混过 | `check()` 报重复 `item_id`、报非枚举的 `origin`/`module`；属加严，不改变 SPEC 的验收口径 |
 | `corpus._run_hidden()` 改为调用 `hidden.run()`（M7） | 同上；另外 pytest 的退出码含义与"套件挂死/读不出报告"混在一起，超时也无法区分 | 返回码语义变成 `0 通过 / 1 有失败 / 2 未完成`；`_failure_reason()` 未改动，仍能从失败清单里取第一行 |
 | `debt_delta` 以 float 写入（M7） | SPEC 4.3 的 `task_end.debt_delta` 是 float，`log.validate()` 按 float 校验；整数加权计数之差在 schema 上会被判类型错 | `Outcome.debt_delta: float`，`evaluate()` 里显式 `float(...)`；`vuln_delta` 仍是 int |
 | 新增只读路由 `GET /api/card`（M9） | `GET /api/state` 只报 `card_id/confirmed_ids/gate_open/phase/ended`，**不含条目**，所以从服务端状态重绘页面时无法还原复选框与文案；storyboard 取证也需要这一点 | 纯附加只读路由，返回 `card_view()`；`/api/state` 的字段与语义不变 |
@@ -364,3 +399,6 @@ python tools\make_storyboard.py --check    # 只核对三帧存在且非空
 - **UI 里的会话仍是作者自测**：`runs/` 不入库，页面里没有任何人类被试数据；帧中的左栏为空，因为请求正文按 Q7 不落盘，重绘不出当时的输入。
 - M7 验收 7 的**后半句**（重算 `analysis/` 时报告哪些结论依赖已删除数据）未实现：`analysis/`（SPEC M10）按 Q8 是 **N/A**，本期没有重算脚本，因此 `purge` 只交付"删除清单"这一半。
 - 六个种子仓库是**自建语料**（Q4 拍板的结果），不是真实开源仓库的历史；它们只用于让"影响分析 recall / precision"可判分。
+- **溯源台账（SPEC M11 / PLAN M10）已实现并通过校验**，但要如实说明它**证明的边界**：校验器证明的是"形式合规"——每个模块有行、三种来源都出现、assisted 行有 decision 与 check、reused 路径真实存在。它**不能**证明某句 `check` 里写的测试确实覆盖了那件事，也不能证明 `decision` 是当时的真实想法。前者靠 `docs/rubric-mapping.md` 的测试名逐条对应，后者只能靠提交历史与这份文件本身的可读性。
+  - 因此台账里的 `check` 列一律写成**可复跑的命令或具名测试**，不写"已审阅"这类无法验证的措辞；`original` 也不用来夸功——它只在"这是作者的裁定/红线"时使用。
+  - `P-019`、`P-020` 两行的 `commit` 列由紧随其后的一次文档提交补齐（台账无法在自己的提交里引用自己的 hash）。

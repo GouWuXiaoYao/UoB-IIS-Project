@@ -36,7 +36,7 @@
 1. `python -m unittest discover -s tests -q` 全绿。
 2. `python -m govern.run --selftest` 输出与预期一致。
 3. `python tools/scan_secrets.py` 零命中。
-4. `python -m govern.provenance --check` 通过（M10 之后）。
+4. `python -m govern.provenance --check` 通过（M10 起已生效）。
 5. 新增/变更的行为有对应测试；修复缺陷时先写失败测试。
 
 ## 6. 禁止事项
