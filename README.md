@@ -20,10 +20,10 @@ code exists and runs, but `SPEC` M9 is still labelled `PLAN`: the pipeline is no
 primary evidence, and every test it prints is a null result by construction.
 **No human data has been collected.** Every session in this repository was run by the author.
 
-Prose word count of this README: **1228 words**, counted by `python tools/word_count.py` with this rule:
+Prose word count of this README: **1257 words**, counted by `python tools/word_count.py` with this rule:
 blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
 (headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
-said 889 at that point and says 1228 now, so the earlier figure was wrong rather than counted
+said 889 at that point and says 1257 now, so the earlier figure was wrong rather than counted
 differently. `python tools/word_count.py
 --check` fails whenever the stated number and the text disagree, and the check is itself a test.
 
@@ -131,6 +131,8 @@ Two identifiers, because neither alone is enough here:
    line that records one is inside the tree it describes, so it goes stale as soon as it lands.
    Quoted digests are historical: `2f2ea5d2…` is the 123-file tree frozen at M11, `b2fbc378…` the
    131-file tree once `experiments/` was added, and `07651cd4…` the 161-entry tree at `d616cd9`.
+   The delivered tree, after the documentation was rewritten in English, is the 161-entry archive of
+   `228e92b` with `sha256:a7a399c0…` — again rebuilt from that commit, not copied from a console.
    The report is **not** inside the archive: `tools/make_release.py` skips `.docx` on purpose, so
    `docs/A2_Report_3138100.docx` travels as its own submitted file.
 
