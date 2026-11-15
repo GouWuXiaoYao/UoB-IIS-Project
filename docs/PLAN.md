@@ -1,68 +1,68 @@
-# A2 治理原型实现方案
+# A2 governance prototype implementation plan
 
-> 状态：**2026-11-14 已批准**。依据 [docs/SPEC.md](SPEC.md)。实施顺序见 §9，每步独立验收。
-> 本期交付（按 **SPEC 模块号**）：MUST = M1/M3/M4/M5/M6/M7/M8/M11；SIM = M2；PLAN = M9（分析管线）；N/A = M10（参与者管理）。
-> 本文件的 M0–M11 是**里程碑号**，与 SPEC 模块号不是一套：里程碑 M9 = Web UI，已实现（见 §9 该行）。
+> Status: **approved 2026-11-14**. Follows [docs/SPEC.md](SPEC.md). The implementation order is in §9; every step is accepted independently.
+> This round's delivery (by **SPEC module number**): MUST = M1/M3/M4/M5/M6/M7/M8/M11; SIM = M2; PLAN = M9 (analysis pipeline); N/A = M10 (participant management).
+> M0–M11 in this file are **milestone numbers**, a different set from the SPEC module numbers: milestone M9 = Web UI, already implemented (see that row in §9).
 
-## 1. 目标与完成定义
+## 1. Goal and definition of done
 
-把 [docs/SPEC.md](SPEC.md) 的 MUST 模块落成可运行、可验收的代码：作者自测可走完"需求 → 评估卡 → 勾选 → 门控 → 生成 → 审阅 → 日志"，并能用同一份录制数据以 C0 直通 / C1 门控两种路径回放。
+Turn the MUST modules of [docs/SPEC.md](SPEC.md) into runnable code that passes acceptance: the author can self-test the whole path "requirement → impact card → ticking → gate → generation → review → log", and can replay the same recordings along two paths, C0 direct and C1 gated.
 
-**完成定义**（对应 SPEC 3.11 六条）：
+**Definition of done** (the six items in SPEC 3.11):
 
-| # | 完成条件 | 验收命令 |
+| # | Completion condition | Acceptance command |
 |---|---|---|
-| 1 | 一条命令跑测试 | `python -m unittest discover -s tests -q` |
-| 2 | 一条命令自检 | `python -m govern.run --dry-run` → `ok: 6 tasks, 6 cards` |
-| 3 | 一条命令复现 | clone → `python -m govern.run --batch --schedule config/schedule.json` → 结果表 |
-| 4 | 零魔法数字 | 阈值全部在 `config/config.json`，测试扫描常量 |
-| 5 | 无密钥无端点 | `python tools/scan_secrets.py` 零命中 |
-| 6 | 溯源可校验 | `python -m govern.provenance --check` |
+| 1 | One command runs the tests | `python -m unittest discover -s tests -q` |
+| 2 | One command self-checks | `python -m govern.run --dry-run` → `ok: 6 tasks, 6 cards` |
+| 3 | One command reproduces | clone → `python -m govern.run --batch --schedule config/schedule.json` → results table |
+| 4 | Zero magic numbers | every threshold lives in `config/config.json`; a test scans for literals |
+| 5 | No keys, no endpoints | `python tools/scan_secrets.py` reports zero findings |
+| 6 | Provenance can be checked | `python -m govern.provenance --check` |
 
-**不做**（SPEC M9：分析管线与 H1–H7 统计；按 Q8 标 PLAN，本期无数据分析脚本）。**不实现**（N/A）：SPEC M10 的参与者管理模块。不采集任何人类数据。
+**Not done** (SPEC M9: analysis pipeline and the H1–H7 statistics; marked PLAN per Q8, so this round has no data-analysis script). **Not implemented** (N/A): the participant-management module of SPEC M10. No human data is collected.
 
-## 2. 实测环境约束（这些事实决定了下面的选型）
+## 2. Measured environment constraints (these facts drive the choices below)
 
-| 事实 | 探测方式 | 对方案的影响 |
+| Fact | How it was probed | Effect on the plan |
 |---|---|---|
-| Python **3.15.0** | `python --version` | 只用标准库，避免第三方包对新版本兼容滞后 |
-| **pytest 未安装** | `python -m pytest --version` → `No module named pytest` | 运行时仍只用标准库 `unittest`；测试期另装 pytest 9.2.0 到 `.venv/`（沙箱内 pip 不可用，用 wheel 手工解包），两种 runner 都能跑 |
-| **git 未安装/不在 PATH** | `git --version` → 命令不存在 | **2026-11-14 已解决**：MinGit 2.56.1 便携版解压到 `_tools/git`（不入库），命令前前插 PATH 即得真实 commit；`SHA256SUMS` 快照保留为第二证据（见风险 R7） |
-| `pandas`/`statsmodels`/`jsonschema` **均无**，`scipy` 有 | `importlib.util.find_spec` | M9 反正属 PLAN；schema 校验自己写，不引 `jsonschema` |
-| 工作区只有 `docs/`、`参考代码库/`、两个 docx | `Get-ChildItem` | 从零建 `govern/`、`corpus/`、`tests/`；无历史包袱 |
+| Python **3.15.0** | `python --version` | standard library only, so no third-party package lags behind a new release |
+| **pytest not installed** | `python -m pytest --version` → `No module named pytest` | the runtime still uses only the standard-library `unittest`; for testing, pytest 9.2.0 is installed separately into `.venv/` (pip does not work in the sandbox, so the wheel is unpacked by hand), and both runners work |
+| **git not installed / not on PATH** | `git --version` → command not found | **resolved 2026-11-14**: the portable MinGit 2.56.1 is unpacked to `_tools/git` (not committed), and prepending PATH before the command yields a real commit; the `SHA256SUMS` snapshot is kept as second evidence (see risk R7) |
+| `pandas`/`statsmodels`/`jsonschema` **all absent**, `scipy` present | `importlib.util.find_spec` | M9 is PLAN anyway; schema validation is hand-written, `jsonschema` is not pulled in |
+| the workspace holds only `docs/`, `参考代码库/` and two docx files | `Get-ChildItem` | `govern/`, `corpus/` and `tests/` are built from scratch; no legacy to carry |
 
-## 3. 目录结构
+## 3. Directory layout
 
 ```
-AGENTS.md                    项目宪法（SPEC 3.11 六条 + 工作流约定）
-README.md                    六项内容：status / stack / 运行 / 开发记录 / AI 使用 / 其他文件
+AGENTS.md                    project constitution (the six items in SPEC 3.11 + workflow conventions)
+README.md                    six sections: status / stack / how to run / development record / AI use / other files
 config/
-  config.json                模型名、温度、seed、τ_review、800ms、配对容差、样本量
-  rules.json                 六类静态规则 + severity + weight
-  schedule.json              随机化 schedule（生成后冻结）
+  config.json                model name, temperature, seed, τ_review, 800ms, pair tolerance, sample size
+  rules.json                 six static rule families + severity + weight
+  schedule.json              randomised schedule (frozen after generation)
 corpus/
-  index.json                 6 条任务定义
+  index.json                 6 task definitions
   T-L01a/{repo/,gold.patch,tests_hidden/,intent.md,impact_labels.json}
-  T-L01b/ T-L02a/ T-L02b/ T-L03a/ T-L03b/   （同上，3 层 × 2）
+  T-L01b/ T-L02a/ T-L02b/ T-L03a/ T-L03b/   (as above, 3 strata × 2)
 recordings/
-  <model_id>/<request_sha256>.json          M3 回放缓存
+  <model_id>/<request_sha256>.json          M3 replay cache
 runs/<run_id>/
-  logs/<participant_id>/<session_id>.jsonl  M7 唯一数据源
-  state/<session_id>.json                   M2 断点
-govern/                     全部源码（平铺包，`python -m govern.run` 直接可用）
+  logs/<participant_id>/<session_id>.jsonl  M7 single data source
+  state/<session_id>.json                   M2 checkpoint
+govern/                     all source (flat package, `python -m govern.run` works directly)
   config.py tasks.py corpus.py impact.py card.py gate.py
   llm.py log.py score.py session.py web.py provenance.py run.py
 tools/
-  make_repo.py              语料模板生成器（参数化植入坏味道）
-  scan_secrets.py           sk-/endpoint/token 扫描
-tests/                      unittest，按模块一文件
+  make_repo.py              corpus template generator (parameterised smell injection)
+  scan_secrets.py           sk-/endpoint/token scan
+tests/                      unittest, one file per module
 docs/  SPEC.md PLAN.md PROVENANCE.md rubric-mapping.md
-参考代码库/                  只读参考，不改动
+参考代码库/                  read-only reference, never modified
 ```
 
-## 4. 模块边界与接口
+## 4. Module boundaries and interfaces
 
-每个模块单一职责，只通过下面这些签名互相调用；跨模块不得访问对方私有属性。
+Each module has one responsibility and calls the others only through the signatures below; no module may touch another module's private attributes.
 
 **`govern/config.py`**
 ```python
@@ -72,7 +72,7 @@ class Config: model_id: str; temperature: float; seed: int
               pair_tolerance: float; app_version: str
 def load(path="config/config.json") -> Config
 ```
-唯一允许出现阈值字面量的地方；`app_version` 取自 `app_version.txt`（无 git 时由构建脚本写入）。
+The only place where threshold literals may appear; `app_version` comes from `app_version.txt` (written by the build script when there is no git).
 
 **`govern/tasks.py`**
 ```python
@@ -83,11 +83,11 @@ def load_index(root="corpus") -> list[Task]
 def by_id(tasks, task_id) -> Task
 ```
 
-**`govern/corpus.py`** — M1 验收器
+**`govern/corpus.py`** — M1 acceptance checker
 ```python
 @dataclass
 class Check: task_id; gold_green: bool; labels_ok: bool; leak_free: bool; baseline_fail_reason: str
-def check_task(task) -> Check     # 应用 gold 后跑隐藏测试
+def check_task(task) -> Check     # run the hidden tests after applying gold
 def check_all(root="corpus") -> list[Check]
 ```
 
@@ -97,17 +97,17 @@ def check_all(root="corpus") -> list[Check]
 class ImpactItem: item_id; category; symbol; files: tuple; detail: str
 @dataclass(frozen=True)
 class ImpactSet: items: tuple[ImpactItem, ...]
-def analyze(repo: Path, intent: str) -> ImpactSet    # ast 静态分析，无 LLM
+def analyze(repo: Path, intent: str) -> ImpactSet    # static ast analysis, no LLM
 def recall_precision(impact: ImpactSet, labels: dict) -> tuple[float, float]
 ```
-`category ∈ {global_var, cross_module_contract, side_effect, test_impact, other}`，与日志枚举一致。
+`category ∈ {global_var, cross_module_contract, side_effect, test_impact, other}`, matching the log enumeration.
 
 **`govern/card.py`** — M5
 ```python
 @dataclass(frozen=True)
 class Card: card_id; version; items; required_ids; n_items; n_required
 def build(impact: ImpactSet, task: Task, condition: str) -> Card
-def to_html(card: Card) -> str      # 不含 diff（SPEC 2.1 约束）
+def to_html(card: Card) -> str      # no diff included (SPEC 2.1 constraint)
 ```
 
 **`govern/gate.py`** — M6
@@ -120,7 +120,7 @@ class Gate:
     def decide(self) -> GateDecision
     def open(self) -> bool
 ```
-C0 用同一接口、恒返回 `blocked=False`（SPEC M6 验收 4）。
+C0 uses the same interface and always returns `blocked=False` (SPEC M6 acceptance 4).
 
 **`govern/llm.py`** — M3
 ```python
@@ -129,21 +129,21 @@ class Suggestion: suggestion_id; patch_diff; rationale_text; touched_symbols; la
 class Client:
     def __init__(self, config: Config, mode: str = "replay",
                  recordings="recordings", api_key_env="A2_API_KEY")
-    def generate(self, ctx: "Context") -> Suggestion   # 失败抛 SchemaViolation / AuthMissing
+    def generate(self, ctx: "Context") -> Suggestion   # raises SchemaViolation / AuthMissing on failure
 ```
-`live` 从环境变量取 key 并写 `recordings/<model_id>/<request_sha256>.json`；`replay` 只读该目录，**无网络、无 key**。
+`live` reads the key from the environment variable and writes `recordings/<model_id>/<request_sha256>.json`; `replay` only reads that directory, **no network, no key**.
 
 **`govern/log.py`** — M7
 ```python
 SCHEMA_VERSION = "1.0.0"
-EVENT_FIELDS: dict[str, dict[str, type]]        # SPEC 4.3 的 14 类事件
+EVENT_FIELDS: dict[str, dict[str, type]]        # the 14 event types of SPEC 4.3
 class Logger:
-    def __init__(self, run_dir: Path, session_meta: dict)   # seq 从 1，原子追加
-    def emit(self, event_type: str, **fields) -> str        # 返回 event_id
-def validate(ev: dict) -> list[str]                       # 返回错误清单，不抛
-def purge(run_dir: Path, before: date) -> list[str]       # 返回删除清单
+    def __init__(self, run_dir: Path, session_meta: dict)   # seq starts at 1, atomic append
+    def emit(self, event_type: str, **fields) -> str        # returns the event_id
+def validate(ev: dict) -> list[str]                       # returns the list of errors, does not raise
+def purge(run_dir: Path, before: date) -> list[str]       # returns the list of deletions
 ```
-拒绝正文字段（`text/content/body/prompt_raw`）由 `validate` 实现；`purge` 后删除 `.jsonl.tmp`。
+Rejecting body fields (`text/content/body/prompt_raw`) is implemented by `validate`; `purge` also deletes leftover `.jsonl.tmp` files.
 
 **`govern/score.py`** — M8
 ```python
@@ -155,135 +155,135 @@ def evaluate(task, repo_after: Path, base: dict) -> Outcome
 def run_hidden_tests(task, repo: Path, timeout_s: int) -> tuple[bool, list[str]]
 ```
 
-**`govern/session.py`** — M2 编排（状态机）
+**`govern/session.py`** — M2 orchestration (state machine)
 ```python
 class Session:
     def __init__(self, run_dir, task: Task, condition: str, participant: str, logger: Logger)
     def submit_prompt(self, text: str) -> Card
     def toggle(self, item_id: str) -> tuple[bool, GateDecision]
-    def confirm(self) -> GateDecision                  # 未勾满 -> blocked，且必须落日志
-    def generate(self) -> Suggestion                   # 门未开则抛 GateClosed（不可绕过）
+    def confirm(self) -> GateDecision                  # not fully ticked -> blocked, and this must be logged
+    def generate(self) -> Suggestion                   # raises GateClosed when the gate is shut (no bypass)
     def act(self, suggestion_id, action, dwell_ms, edit_lines=None)
     def end(self, submitted: bool, timeout: bool = False)
     def checkpoint(self, path: Path) / @classmethod resume(cls, path)
 ```
 
-**`govern/run.py`** — 唯一 CLI 入口
+**`govern/run.py`** — the only CLI entry point
 ```
 python -m govern.run --selftest
 python -m govern.run --dry-run [--tasks 6]
 python -m govern.run --session S-001 --participant P01 --condition C1 --task T-L01a --port 8000
 python -m govern.run --batch --schedule config/schedule.json --run-id R-001
 python -m govern.run --resume runs/R-001/state/S-001.json
-python -m govern.run --simulate 100        # 虚拟分配均衡性检验
+python -m govern.run --simulate 100        # virtual-assignment balance check
 ```
 
-**`govern/web.py`** — 复用 `参考代码库/index.html` 的骨架（左对话 / 右卡片，原生 JS，`http.server`），只加"复选框 + 确认按钮 + 未勾满时的拦截提示"。
+**`govern/web.py`** — reuses the skeleton of `参考代码库/index.html` (conversation on the left / card on the right, plain JS, `http.server`), adding only "checkboxes + a confirm button + a blocking prompt when items are not all ticked".
 
-## 5. 数据流
+## 5. Data flow
 
 ```
-[UI] prompt ──► Session.submit_prompt
-                 ├─ impact.analyze(repo, intent)        纯 AST，无模型
-                 ├─ card.build(impact, task, condition)
-                 ├─ log: prompt_submit
-                 └─ log: card_shown {n_items, n_required, impact_set_hash}
-[UI] 勾选 ────► Gate.toggle ──► log: card_item_toggle {dwell_ms}
-[UI] 确认 ────► Gate.decide
-                 ├─ 未勾满 → log: gate_decision{blocked=true} → UI 显示还缺哪几项（生成被拒）
-                 └─ 勾满   → log: gate_decision{blocked=false}
-[UI] 生成 ────► Client.generate ──► log: generation_request{mode,latency} + suggestion_shown
-[UI] 审阅 ────► Session.act ─────► log: suggestion_action{action,review_dwell_ms,accepted_after_gate}
-[UI] 提交 ────► score.evaluate ──► log: test_run + task_end + suggestion_scored
-[CLI] 收尾 ───► log: session_end
+[UI] prompt ────► Session.submit_prompt
+                  ├─ impact.analyze(repo, intent)        pure AST, no model
+                  ├─ card.build(impact, task, condition)
+                  ├─ log: prompt_submit
+                  └─ log: card_shown {n_items, n_required, impact_set_hash}
+[UI] tick ──────► Gate.toggle ──► log: card_item_toggle {dwell_ms}
+[UI] confirm ───► Gate.decide
+                  ├─ not all ticked → log: gate_decision{blocked=true} → the UI shows which items are missing (generation refused)
+                  └─ all ticked     → log: gate_decision{blocked=false}
+[UI] generate ──► Client.generate ────► log: generation_request{mode,latency} + suggestion_shown
+[UI] review ────► Session.act ────────► log: suggestion_action{action,review_dwell_ms,accepted_after_gate}
+[UI] submit ────► score.evaluate ─────► log: test_run + task_end + suggestion_scored
+[CLI] end ──────► log: session_end
 ```
-C0 走完全相同的路径，只有 `Gate.decide` 恒 `blocked=false`——保证两组日志 schema 与指标定义完全一致（SPEC M6 验收 4）。
+C0 walks exactly the same path, except that `Gate.decide` always returns `blocked=false` — which keeps the log schema and the metric definitions identical across the two groups (SPEC M6 acceptance 4).
 
-## 6. 第三方依赖及理由
+## 6. Third-party dependencies and the reasoning
 
-**运行时：零第三方依赖。** 只用 `json / ast / hashlib / uuid / datetime / pathlib / subprocess / http.server / unittest`。
+**Runtime: zero third-party dependencies.** Only `json / ast / hashlib / uuid / datetime / pathlib / subprocess / http.server / unittest` are used.
 
-理由按重要性排序：
-1. `pytest` 在本机未安装，而"一条命令跑测试"必须能离线执行 → 用 `unittest`，装不装都不影响。
-2. 评分要求"评审者能在自己机器上跑起来"；零依赖把环境问题降到只剩 Python 本身。
-3. Python 3.15 很新，第三方包兼容性不可控；`jsonschema` 的能力用 60 行自写校验替代（且我们必须**拒绝**未知字段，通用库反而不好表达）。
+Reasons, in order of importance:
+1. `pytest` is not installed on this machine, and "one command runs the tests" must work offline → use `unittest`, which works whether pytest is installed or not.
+2. The marking asks that "a reviewer can run it on their own machine"; zero dependencies cut environment problems down to Python itself.
+3. Python 3.15 is very new and third-party compatibility is unpredictable; the `jsonschema` capability is replaced by 60 lines of hand-written validation (and we must **reject** unknown fields, which general-purpose libraries express poorly).
 
-**开发期：也无需安装任何东西。**（若你希望装 pytest/black，属可选项，不进入交付路径。）
+**Development: nothing needs installing either.** (Installing pytest/black is optional and does not enter the delivery path.)
 
-**M9 分析管线（PLAN）** 需要 `pandas`/`matplotlib`，本机缺 `pandas`，留到实现 M9 时再定，不阻塞本期。
+**The M9 analysis pipeline (PLAN)** needs `pandas`/`matplotlib`; `pandas` is missing here, so it is left until M9 is implemented and does not block this round.
 
-## 7. 实验运行方式
+## 7. How to run the experiments
 
-| 场景 | 命令 | 说明 |
+| Scenario | Command | Notes |
 |---|---|---|
-| 作者自测单次 | `python -m govern.run --session S-001 --condition C1 --task T-L01a --port 8000` | 起本地 UI，走完整闭环；结束写 `session_end` |
-| 录制一份 live 素材 | `set A2_API_KEY=...&& python -m govern.run --session S-000 --condition C1 --task T-L01a --live` | 只在需要新素材时执行；密钥不落盘 |
-| 批量（无 UI） | `python -m govern.run --batch --schedule config/schedule.json --run-id R-001` | 按 schedule 顺序跑所有 slot，逐会话落日志；用于 N=10 协议的**空跑验证** |
-| 断点续跑 | `python -m govern.run --resume runs/R-001/state/S-001.json` | 读 state + 日志末条 `seq`，跳过已结束任务；`seq` 续接不重号 |
-| 分配均衡性 | `python -m govern.run --simulate 100` | 100 次虚拟分配，输出两条件计数与卡方 p；写 `runs/_sim/sim.json` |
-| 复现结果表 | `python -m govern.run --batch ... --run-id R-REPRO` | 同 schedule + 同 recordings → 同 `impact_set_hash` 与同事件序列 |
-| 清理 | `python -m govern.log --purge --before 2027-02-01` | 输出删除清单，处理 90 天保留期 |
+| Author single self-test | `python -m govern.run --session S-001 --condition C1 --task T-L01a --port 8000` | starts the local UI and walks the full loop; writes `session_end` at the end |
+| Record one live sample | `set A2_API_KEY=...&& python -m govern.run --session S-000 --condition C1 --task T-L01a --live` | run only when new material is needed; the key never touches disk |
+| Batch (no UI) | `python -m govern.run --batch --schedule config/schedule.json --run-id R-001` | runs every slot in schedule order and logs each session; used for the **dry run** of the N=10 protocol |
+| Resume from a checkpoint | `python -m govern.run --resume runs/R-001/state/S-001.json` | reads state + the last `seq` in the log and skips finished tasks; `seq` continues without reuse |
+| Assignment balance | `python -m govern.run --simulate 100` | 100 virtual assignments; prints the count per condition and the chi-square p; writes `runs/_sim/sim.json` |
+| Reproduce the results table | `python -m govern.run --batch ... --run-id R-REPRO` | same schedule + same recordings → same `impact_set_hash` and the same event sequence |
+| Cleanup | `python -m govern.log --purge --before 2027-02-01` | prints the deletion list; applies the 90-day retention period |
 
-**断点续跑的实现要点**（决定成败）：每个事件写入后，`state/<session>.json` 记录 `{seq, task_index, phase, card_id, confirmed_ids[], gate_open}`；恢复时以日志末条 `seq` 为唯一权威，state 只作快速投影，二者冲突时报错而非猜测。
+**Resume implementation points** (these decide whether it works): after each event is written, `state/<session>.json` records `{seq, task_index, phase, card_id, confirmed_ids[], gate_open}`; on resume the last `seq` in the log is the single authority and state is only a fast projection — a conflict is an error, never a guess.
 
-## 8. 测试策略
+## 8. Test strategy
 
-| 层次 | 内容 | 在哪 |
+| Layer | Content | Where |
 |---|---|---|
-| 单元 | 每个模块的纯函数（config 解析、impact 分析、规则命中、schema 校验） | `tests/test_<module>.py` |
-| 契约 | 14 类事件字段齐全、类型正确、必填无 null | `tests/test_log_schema.py`（表驱动，直接从 SPEC 4.3 抄一份期望表） |
-| 负向 | 门不可绕过、未勾满必被拒、非法 JSON 不写半行、正文字段被拒、`purge` 无残留、`sk-` 扫描命中 | 每模块至少 1 条 |
-| 确定性 | replay 同输入 10 次 → 建议对象 hash 全等；`impact_set_hash` 与文件遍历顺序无关 | `tests/test_determinism.py` |
-| 语料 | 6/6 gold 后隐藏测试全绿；基线必须因"重构未做"失败而非环境问题；同 `pair_id` 三项指标差异 ≤20% | `tests/test_corpus.py` |
-| 端到端 | `--dry-run` 全链路不联网不写真实日志；`--batch` 两会话产物结构一致 | `tests/test_e2e.py` |
+| Unit | the pure functions of each module (config parsing, impact analysis, rule hits, schema validation) | `tests/test_<module>.py` |
+| Contract | all fields of the 14 event types present, correctly typed, required fields never null | `tests/test_log_schema.py` (table-driven, with an expected table copied straight from SPEC 4.3) |
+| Negative | the gate cannot be bypassed, incomplete ticking is always rejected, invalid JSON writes no partial line, body fields are rejected, `purge` leaves nothing, `sk-` scanning hits | at least 1 per module |
+| Determinism | replay the same input 10 times → identical suggestion hashes; `impact_set_hash` is independent of file traversal order | `tests/test_determinism.py` |
+| Corpus | 6/6 hidden tests green after gold; the baseline must fail because "the refactor is not done", not for environment reasons; the three metrics differ by ≤20% within a `pair_id` | `tests/test_corpus.py` |
+| End to end | the whole `--dry-run` path uses no network and writes no real log; the two `--batch` session outputs have the same structure | `tests/test_e2e.py` |
 
-测试夹具：`tests/fixtures/` 放 2 个微型仓库（一脏一净）给规则与影响分析用，不依赖 `corpus/` 的 6 个真实任务。所有测试**不得**访问网络。
+Test fixtures: `tests/fixtures/` holds 2 tiny repositories (one dirty, one clean) for the rules and the impact analysis, so they do not depend on the 6 real tasks in `corpus/`. No test **may** touch the network.
 
-## 9. 里程碑（每步 ≤2h，均可独立验收）
+## 9. Milestones (each ≤2h, each independently acceptable)
 
-| # | 内容 | 交付物 | 验收命令（必须通过） | 估时 |
+| # | Content | Deliverable | Acceptance command (must pass) | Estimate |
 |---|---|---|---|---|
-| M0 | 骨架与工具链 | `govern/` 空包、`config/config.json`、`AGENTS.md`、`.gitignore`、1 个样本测试 | `python -m govern.run --selftest` → `ok: 0 tasks, 0 cards`；`python -m unittest discover -s tests -q` | 1.5h |
-| M1 | 语料工厂（低难度一对） | `tools/make_repo.py` + `T-L01a`/`T-L01b`（含坏味道、gold、隐藏测试、标签）、`index.json` | `python -m govern.corpus --check` → `ok: 2 tasks, gold 2/2, labels 2/2` | 2h |
-| M2 | 中/高难度两对 | `T-L02a/b`、`T-L03a/b` | 同上 → `ok: 6 tasks, gold 6/6, pairs 3/3 within 20%` | 1.5h |
-| M3 | 影响分析器（M4） | `govern/impact.py` | `python -m govern.impact --selftest` → `recall=1.00 precision>=0.80 on 6 tasks` | 2h |
-| M4 | 卡片 + 门（M5、M6） | `govern/card.py`、`govern/gate.py` | `python -m govern.gate --selftest` → 未勾满被拒、勾满解锁、**绕过接口的负向测试必须失败**。**已完成（2026-11-14）**：`ok: 6 cards, blocked until every item is confirmed, C0 passthrough, min dwell 800 ms`；负向测试见 `tests/test_gate.py:131-165` | 2h |
-| M5 | 日志器（M7） | `govern/log.py` + schema 表 | `python -m govern.log --selftest` → **16** 类事件校验通过（PLAN 原写"14 类"，以 SPEC 4.3 为准）；正文类字段被拒；`purge` 无残留。**已完成（2026-11-14）**：`ok: 16 event types, seq from 1, atomic append, purge clean`；证据见 `docs/rubric-mapping.md` §2d | 2h |
-| M6 | LLM 客户端（M3） | `govern/llm.py`、`recordings/`、`tools/scan_secrets.py`、`tools/make_recordings.py` | `python -m govern.llm --selftest` → replay 10 次 hash 全等、无网络；`scan_secrets` 零命中。**已完成（2026-11-14）**：`ok: 6 recordings, 10 replays each, 6/6 identical, no network used`、`ok: 0 finding(s) in 105 files`；录制为作者模拟（`source: "sim"`），证据见 `docs/rubric-mapping.md` §2e | 2h |
-| M7 | 评估器（M8） | `govern/score.py`、`govern/hidden.py`、`config/rules.json` | `python -m govern.score --selftest` → gold 全绿、干净样本 0、六类规则各有正反例。**已完成（2026-11-14）**：`ok: 6 rules (complexity, duplication, bare_except, hardcoded_secret, eval_usage, sql_concat) with positive and negative fixtures, gold 6/6, clean repository 0 debt`；隐藏套件改由标准库子进程运行器执行（`ok: hidden suite runner reports pass/fail in a child interpreter`），`corpus --check` 因此不再依赖 pytest；证据见 `docs/rubric-mapping.md` §2f | 2h |
-| M8 | 编排 + CLI（M2） | `govern/session.py`、`govern/run.py`、`config/schedule.json` | `--simulate 100` 卡方 p>0.05；杀进程后 `--resume` 的 `seq` 连续。**已完成（2026-11-14）**：`ok: simulated 100 assignments, C0=300 C1=300 chi2 p=1.000 (balanced at alpha=0.05), every pair in both conditions: yes`；`govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000`；续跑由 `test_checkpoint_then_resume_continues_the_sequence` 与 `test_resume_finishes_a_checkpointed_session` 逐行断言 `seq`；证据见 `docs/rubric-mapping.md` §2g | 2h |
-| M9 | Web UI 集成 | `govern/web.py`、`static/index.html`、`tools/make_storyboard.py` | **已完成**：手工路径由脚本代走——真实服务器 + 无头 Chrome，`python tools/make_storyboard.py --check` → `ok: 3 storyboard frame(s)`；`python -m govern.web --selftest` → `ok: 6 routes wired, card rendered from session state` | 2h |
-| M10 | 溯源与文档 | `docs/PROVENANCE.md`、`govern/provenance.py`、README | `python -m govern.provenance --check`；故意删一条 assisted 的 check 字段 → 必须非零退出。**已完成（2026-11-14）**：`ok: 21 rows, 11 modules covered (original=8, reused=3, assisted=10)`；负向实测 `fail: 1 problem(s) … P-003: assisted work needs a check`、`exit=1`；README 重写为覆盖"状态/技术栈/运行/开发记录/AI 使用/附加文件"六项并附 210 词的字数；证据见 `docs/rubric-mapping.md` §2i | 1h |
-| M11 | 端到端冻结 | `--dry-run`、`--batch` 全通；ZIP + `SHA256SUMS` | 六条完成定义逐条跑一遍。**已完成（2026-11-14）**：六条全通（`328 tests OK`、`ok: 6 tasks, 6 cards`、`ok: batch P01 ran 6 of 6 slots`、`ok: 0 finding(s) in 220 files`、`ok: 21 rows, 11 modules covered`、零魔法数字由 `tests/test_config_discipline.py` 证明）；冻结归档 `dist/a2-1.0.0.zip`（123 文件）`sha256:2f2ea5d269f260d03bd8b942b3cac8ec41383b6266e8824e94b5944b772590c4`，两次构建同 hash。**最终审计（2026-11-14 晚）在当时的 HEAD 上重跑全部六条并重建归档**：`Ran 446 tests … OK (skipped=2)`、`ok: 6 tasks, 6 cards`、`ok: batch P01 ran 6 of 6 slots`、`ok: 0 finding(s) in 176 files`、`ok: 31 rows, 11 modules covered (original=10, reused=3, assisted=18)`、`ok: 6 of 6 steps passed`（`tools/reproduce.ps1`）；归档变为 **161 条目、696,791 字节、`sha256:07651cd4ac339adc4a23104abb5541b5591dda4883bf7fffce2464989266b40c`（对应提交 `d616cd9` 的树）**，`--verify` 通过、两次构建同 hash。M11 那一行记的是冻结当时的数字，审计行记的是交付时的数字，两者差异原因写在 `docs/rubric-mapping.md` §2j 里。证据见 `docs/rubric-mapping.md` §2j | 1h |
-| M12 | 实验编排（冻结后追加） | `experiments/spec.py`、`runner.py`、`metrics.py`、`run.py`、`conditions.yaml`、`README.md` | `python -m experiments.run --config conditions.yaml --dry-run` 打印计划且不落盘；真实运行 12 个 cell 出一张表并写 `runs/E-SIM-01/{config.snapshot.json,manifest.json,logs/,metrics.json}`；`--resume` 全跳过。**已完成（2026-11-14）**：`ok: 2 conditions × 6 tasks × 1 participant(s) × 1 repetition(s) = 12 sessions (concurrency 2)`；实测 `escape rate C0=1.00 C1=1.00`、`OTI=0.00`、`C1 mechanical=1.00`（脚本操作者导致的退化指标，已在 `experiments/README.md` 与 §2k 注明"不是治理有效的证据"）；`--resume` → `ok: 0 ran, 12 skipped, 0 failed`；全量测试由 328 增至 **352**；重建归档为 131 文件 `sha256:b2fbc3783fa57ab3a58c8d94f9ba49ff1aa0e5478f55c64a0f7a47f11ea31b50`（M11 的 123 文件哈希是 `govern/` 冻结时点，早于本层）；证据见 `docs/rubric-mapping.md` §2k | 1.5h |
-| M13 | 分析层（冻结后追加） | `analysis/{load,checks,stats,report,run,xlsx,png}.py`、`analysis/README.md`、`tools/word_count.py` | `python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis` 一条命令出 `results.xlsx`（7 表）+ 4 张 PNG + `captions.md`；`--selftest` 用已知答案校验统计/工作簿/画布。**已完成（2026-11-14）**：`missing: expected 12, found 12 sessions, 12 ended, 12 with an outcome`、`multiplicity: 1 tests, 0 survive Holm at alpha=0.05`、`ok: 12 session logs, 4 figures`；唯一进入家族的 `elapsed_ms` 差 −2.33 ms、t(5)=−2.44、p=0.0578（Holm 后不显著）；7 个结局指标每对差值恒为 0，t/Wilcoxon 返回 `n/a` 而非伪造小 p；`gate_latency_ms`/`blocked_attempts` 标 `structural zero in baseline` 并排除出家族。**同时自纠一处旧错误**：README 原写 "210 words" 是手算错值（实测近四倍），新增 `tools/word_count.py --check` 并接入 `tests/test_end_to_end.py` 防漂移；正文里只引用该工具当下的输出，文档不再抄写具体数字；全量测试 352 → **384**（分析层后为 385）；证据见 `docs/rubric-mapping.md` §2l | 2h |
+| M0 | Skeleton and toolchain | empty `govern/` package, `config/config.json`, `AGENTS.md`, `.gitignore`, 1 sample test | `python -m govern.run --selftest` → `ok: 0 tasks, 0 cards`; `python -m unittest discover -s tests -q` | 1.5h |
+| M1 | Corpus factory (one low-difficulty pair) | `tools/make_repo.py` + `T-L01a`/`T-L01b` (with smells, gold, hidden tests, labels), `index.json` | `python -m govern.corpus --check` → `ok: 2 tasks, gold 2/2, labels 2/2` | 2h |
+| M2 | The medium and high difficulty pairs | `T-L02a/b`, `T-L03a/b` | as above → `ok: 6 tasks, gold 6/6, pairs 3/3 within 20%` | 1.5h |
+| M3 | Impact analyser (M4) | `govern/impact.py` | `python -m govern.impact --selftest` → `recall=1.00 precision>=0.80 on 6 tasks` | 2h |
+| M4 | Card + gate (M5, M6) | `govern/card.py`, `govern/gate.py` | `python -m govern.gate --selftest` → incomplete ticking is rejected, full ticking unlocks, **a negative test that bypasses the interface must fail**. **done (2026-11-14)**: `ok: 6 cards, blocked until every item is confirmed, C0 passthrough, min dwell 800 ms`; the negative tests are in `tests/test_gate.py:131-165` | 2h |
+| M5 | Logger (M7) | `govern/log.py` + the schema table | `python -m govern.log --selftest` → **16** event types validate (PLAN originally said "14 types"; SPEC 4.3 governs); body fields are rejected; `purge` leaves nothing. **done (2026-11-14)**: `ok: 16 event types, seq from 1, atomic append, purge clean`; evidence in `docs/rubric-mapping.md` §2d | 2h |
+| M6 | LLM client (M3) | `govern/llm.py`, `recordings/`, `tools/scan_secrets.py`, `tools/make_recordings.py` | `python -m govern.llm --selftest` → 10 replays give identical hashes and no network is used; `scan_secrets` reports zero findings. **done (2026-11-14)**: `ok: 6 recordings, 10 replays each, 6/6 identical, no network used`, `ok: 0 finding(s) in 105 files`; the recordings are author simulations (`source: "sim"`), evidence in `docs/rubric-mapping.md` §2e | 2h |
+| M7 | Scorer (M8) | `govern/score.py`, `govern/hidden.py`, `config/rules.json` | `python -m govern.score --selftest` → gold all green, the clean sample scores 0, each of the six rule families has a positive and a negative case. **done (2026-11-14)**: `ok: 6 rules (complexity, duplication, bare_except, hardcoded_secret, eval_usage, sql_concat) with positive and negative fixtures, gold 6/6, clean repository 0 debt`; the hidden suite now runs through a standard-library subprocess runner (`ok: hidden suite runner reports pass/fail in a child interpreter`), so `corpus --check` no longer depends on pytest; evidence in `docs/rubric-mapping.md` §2f | 2h |
+| M8 | Orchestration + CLI (M2) | `govern/session.py`, `govern/run.py`, `config/schedule.json` | chi-square p>0.05 for `--simulate 100`; after the process is killed, `--resume` keeps `seq` contiguous. **done (2026-11-14)**: `ok: simulated 100 assignments, C0=300 C1=300 chi2 p=1.000 (balanced at alpha=0.05), every pair in both conditions: yes`; `govern.session --selftest` → `ok: 10 participants, 6 slots each, deterministic, C0=300 C1=300 chi2 p=1.000`; resume is asserted line by line on `seq` by `test_checkpoint_then_resume_continues_the_sequence` and `test_resume_finishes_a_checkpointed_session`; evidence in `docs/rubric-mapping.md` §2g | 2h |
+| M9 | Web UI integration | `govern/web.py`, `static/index.html`, `tools/make_storyboard.py` | **done**: the manual path is walked by a script instead — a real server plus headless Chrome, `python tools/make_storyboard.py --check` → `ok: 3 storyboard frame(s)`; `python -m govern.web --selftest` → `ok: 6 routes wired, card rendered from session state` | 2h |
+| M10 | Provenance and documentation | `docs/PROVENANCE.md`, `govern/provenance.py`, README | `python -m govern.provenance --check`; deleting one `check` field from an assisted row on purpose → must exit non-zero. **done (2026-11-14)**: `ok: 21 rows, 11 modules covered (original=8, reused=3, assisted=10)`; the measured negative case `fail: 1 problem(s) … P-003: assisted work needs a check`, `exit=1`; the README is rewritten to cover the six sections "status / stack / how to run / development record / AI use / additional files" with a word count of 210; evidence in `docs/rubric-mapping.md` §2i | 1h |
+| M11 | End-to-end freeze | both `--dry-run` and `--batch` pass; ZIP + `SHA256SUMS` | run all six definition-of-done items one by one. **done (2026-11-14)**: all six pass (`328 tests OK`, `ok: 6 tasks, 6 cards`, `ok: batch P01 ran 6 of 6 slots`, `ok: 0 finding(s) in 220 files`, `ok: 21 rows, 11 modules covered`, and zero magic numbers proved by `tests/test_config_discipline.py`); the frozen archive `dist/a2-1.0.0.zip` (123 files) has `sha256:2f2ea5d269f260d03bd8b942b3cac8ec41383b6266e8824e94b5944b772590c4`, the same hash from two builds. **The final audit (evening of 2026-11-14) re-ran all six on the then-current HEAD and rebuilt the archive**: `Ran 446 tests … OK (skipped=2)`, `ok: 6 tasks, 6 cards`, `ok: batch P01 ran 6 of 6 slots`, `ok: 0 finding(s) in 176 files`, `ok: 31 rows, 11 modules covered (original=10, reused=3, assisted=18)`, `ok: 6 of 6 steps passed` (`tools/reproduce.ps1`); the archive became **161 entries, 696,791 bytes, `sha256:07651cd4ac339adc4a23104abb5541b5591dda4883bf7fffce2464989266b40c` (the tree of commit `d616cd9`)**, `--verify` passes and two builds give the same hash. The M11 row records the numbers at freeze time, the audit line records the numbers at delivery time; the reason for the difference is written in `docs/rubric-mapping.md` §2j. Evidence in `docs/rubric-mapping.md` §2j | 1h |
+| M12 | Experiment orchestration (added after the freeze) | `experiments/spec.py`, `runner.py`, `metrics.py`, `run.py`, `conditions.yaml`, `README.md` | `python -m experiments.run --config conditions.yaml --dry-run` prints the plan and writes nothing; a real run of 12 cells produces one table and writes `runs/E-SIM-01/{config.snapshot.json,manifest.json,logs/,metrics.json}`; `--resume` skips everything. **done (2026-11-14)**: `ok: 2 conditions × 6 tasks × 1 participant(s) × 1 repetition(s) = 12 sessions (concurrency 2)`; measured `escape rate C0=1.00 C1=1.00`, `OTI=0.00`, `C1 mechanical=1.00` (a degenerate metric caused by a scripted operator, noted in `experiments/README.md` and §2k as "not evidence that governance works"); `--resume` → `ok: 0 ran, 12 skipped, 0 failed`; the full test count rises from 328 to **352**; the rebuilt archive is 131 files `sha256:b2fbc3783fa57ab3a58c8d94f9ba49ff1aa0e5478f55c64a0f7a47f11ea31b50` (the 123-file hash of M11 is the `govern/` freeze point, earlier than this layer); evidence in `docs/rubric-mapping.md` §2k | 1.5h |
+| M13 | Analysis layer (added after the freeze) | `analysis/{load,checks,stats,report,run,xlsx,png}.py`, `analysis/README.md`, `tools/word_count.py` | `python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis` produces, in one command, `results.xlsx` (7 sheets) + 4 PNG files + `captions.md`; `--selftest` checks the statistics, the workbook and the canvas against known answers. **done (2026-11-14)**: `missing: expected 12, found 12 sessions, 12 ended, 12 with an outcome`, `multiplicity: 1 tests, 0 survive Holm at alpha=0.05`, `ok: 12 session logs, 4 figures`; the only metric entering the family, `elapsed_ms`, differs by −2.33 ms, t(5)=−2.44, p=0.0578 (not significant after Holm); the 7 outcome metrics differ by exactly 0 per pair, and t/Wilcoxon return `n/a` rather than a fabricated small p; `gate_latency_ms`/`blocked_attempts` are marked `structural zero in baseline` and excluded from the family. **One old mistake is corrected here too**: the README's "210 words" was a hand-calculated wrong value (the measurement is nearly four times that), so `tools/word_count.py --check` is added and wired into `tests/test_end_to_end.py` to stop drift; the body text now quotes only that tool's current output and the document no longer copies specific numbers; the full test count goes 352 → **384** (385 after the analysis layer); evidence in `docs/rubric-mapping.md` §2l | 2h |
 
-合计约 **21h**。M1 的 2h 只做出"模板 + 一对"，因为模板是后面 5 个仓库的成本摊薄点；若模板化失败，M2 会退化为 3×2h（见 R1）。
+Total about **21h**. M1's 2h only delivers "the template + one pair", because the template is where the cost of the following 5 repositories is amortised; if templating fails, M2 degrades to 3×2h (see R1).
 
-## 10. 风险与失败模式
+## 10. Risks and failure modes
 
-| # | 风险 | 触发信号 | 缓解 |
+| # | Risk | Trigger signal | Mitigation |
 |---|---|---|---|
-| R1 | 6 个种子仓库工作量爆炸 | M2 超 3h | 先用 `make_repo.py` 参数化生成（坏味道组合 + 规模），人工只审"是否有真实跨模块契约" |
-| R2 | AST 影响分析 recall 达不到 1.0 | M3 达不到目标的 100% | recall 是治理正确性要求（漏报即失守）→ 若达不到，改为"标签集由分析器生成 + 人工复核"并在报告中说明，不允许悄悄降低阈值。**M3 实测 6/6 达到 `recall=1.00 precision=1.00`，未启用该降级**；代价是契约的操作化定义被迫收窄（只认"被 ≥2 个包内模块读取的顶层值"，见 `govern/impact.py` docstring），已记入 `docs/rubric-mapping.md` 第 6 节 |
-| R3 | 真实 API 限流/不可用/模型漂移 | M6 录制失败 | `replay` 是交付默认；录制一次性完成后冻结，报告中标明模型快照日期。**M6 现状**：本机无凭据，6 条录制是工厂派生的**模拟**建议（`source: "sim"`，从 gold patch 去掉一个消费者），因此不存在"真实调用"可漂移；`live` 路径仅由测试里的回环 stub 覆盖 |
-| R4 | 无 pytest → 与工作流文档约定不一致 | M0 | 明确改用 `unittest`，写进 AGENTS.md 并在 README 说明理由；两者可共存（pytest 能发现 unittest 用例） |
-| R5 | Python 3.15 与某库不兼容 | 任何 `import` 失败 | 零第三方运行时依赖，把该风险消除 |
-| R6 | UI 成为时间黑洞 | M9 超 2h | 直接改 `参考代码库/index.html`（已验证可用的 49 行骨架），不引入框架、不做视觉打磨 | **未触发**：M9 在 2h 内完成，未引入框架；storyboard 由脚本取证而非手工截图 |
-| R7 | **无 git → 无法给出 commit/release** | M0 | **已处理（2026-11-14）**：winget 与官方安装器在本机沙箱内均失败（winget 退出码 `-1978335231`，Inno 静默安装无落地文件），改用 **MinGit 2.56.1 便携版**，解压在 `_tools/git`（已被 `.gitignore` 排除），仅通过 `$env:PATH` 前插调用；仓库因此有真实 commit。**同时保留 ZIP + `SHA256SUMS` 快照**，两者在 README 中如实并列说明 |
-| R8 | 门被绕过（最致命，直接命中红线） | M4 负向测试失败 | 生成路径只接受 `Gate.open() == True`；接口层无公开旁路；有专门负向测试。**M4 已验证**：门的全部状态私有、构造时校验卡（`required_ids` 与 `n_required` 不符即 `ValueError`）、确认不跨实例继承、令牌一次性且勾选变化即失效；`tests/test_gate.py` 的 `BypassTests` 五条覆盖 |
-| R9 | 日志被写成半行/丢事件 | M5 | 单行 `write` + `flush` + `fsync`；中途杀掉进程的测试必须在 M5 通过。**已验证**：`tests/test_log.py:302` 模拟撕裂尾行，重开后截掉残段并复用 seq；实现用 `O_APPEND` 单次 `os.write` + `fsync`，不产生 `.tmp` 中转 |
-| R10 | 断点续跑双写 | M8 | 以日志末条 `seq` 为唯一权威，state 与日志冲突即报错停止。**已验证**：`StateConflict` 有测试（`test_state_ahead_of_the_log_is_a_conflict`），修复方式是"state 只写不读回去判定，读回去一律以日志重放为准" |
-| R11 | 计划分析被误写成实测 | 写报告时 | SPEC 5 节横幅 + 8.1b 自查表；报告中禁用 "experiment shows" |
-| R12 | 规则集测不出轻层语料的坏味道，债务指标在 L 层恒为 0 | M7 实测 | 实测 L=0 / M=3 / H=8（加权），缺口在于 L 层的坏味道是"浮点金额 + 模块级缓存 + 语义重复的税额推导"，六类规则都不覆盖。**决定不改语料**（语料被 M2 验收与 6 条录制按字节引用，改它等于作废 replay）。交付口径：债务下降只在 M/H 层声称，L 层用隐藏测试与行数指标；已写入 `docs/rubric-mapping.md` §2f 与第 6 节 |
+| R1 | Work on the 6 seed repositories explodes | M2 overruns 3h | generate parametrically with `make_repo.py` first (smell combinations + size); humans only review "is there a real cross-module contract" |
+| R2 | AST impact analysis never reaches recall 1.0 | M3 misses 100% of target | recall is a correctness requirement for governance (a miss is a failure) → if it cannot be met, switch to "the label set is generated by the analyser + manually reviewed" and say so in the report; lowering the threshold quietly is not allowed. **In the measurement M3 reached `recall=1.00 precision=1.00` on 6/6, so that fallback was not used**; the cost is that the contract had to be defined more narrowly (only "a top-level value read by ≥2 modules inside the package"; see the `govern/impact.py` docstring), recorded in section 6 of `docs/rubric-mapping.md` |
+| R3 | The real API is rate-limited or unavailable, or the model drifts | M6 recording fails | `replay` is the delivery default; recordings are made once, then frozen, and the report states the model snapshot date. **M6 status**: there are no credentials on this machine, so the 6 recordings are **simulated** suggestions derived by the factory (`source: "sim"`, the gold patch with one consumer removed); there is therefore no "real call" that could drift; the `live` path is covered only by a loopback stub in the tests |
+| R4 | No pytest → inconsistent with the workflow document convention | M0 | switch explicitly to `unittest`, write that into AGENTS.md and explain why in the README; the two coexist (pytest discovers unittest cases) |
+| R5 | Python 3.15 is incompatible with some library | any `import` fails | zero third-party runtime dependencies removes the risk |
+| R6 | The UI becomes a time sink | M9 overruns 2h | edit `参考代码库/index.html` directly (a 49-line skeleton already known to work), no framework, no visual polish | **not triggered**: M9 finished within 2h, no framework was added; the storyboard is captured by a script rather than by hand |
+| R7 | **No git → no commit/release possible** | M0 | **handled (2026-11-14)**: both winget and the official installer failed inside the sandbox on this machine (winget exit code `-1978335231`, the Inno silent install left no files), so the **portable MinGit 2.56.1** is used instead, unpacked to `_tools/git` (excluded by `.gitignore`) and invoked only by prepending `$env:PATH`; the repository therefore has real commits. **The ZIP + `SHA256SUMS` snapshot is kept as well**, and the README states both side by side faithfully |
+| R8 | The gate is bypassed (the most fatal; a direct hit on the red line) | M4 negative test fails | the generation path accepts only `Gate.open() == True`; the interface layer has no public bypass; there are dedicated negative tests. **M4 verified**: all gate state is private, the card is validated at construction (a mismatch between `required_ids` and `n_required` raises `ValueError`), confirmation does not carry across instances, and the token is single-use and invalidated as soon as the ticking changes; the five `BypassTests` cases in `tests/test_gate.py` cover this |
+| R9 | The log gets a partial line or loses an event | M5 | one-line `write` + `flush` + `fsync`; the test that kills the process midway must pass at M5. **verified**: `tests/test_log.py:302` simulates a torn last line, and after reopening the truncated tail is cut off and seq is reused; the implementation uses a single `os.write` with `O_APPEND` plus `fsync`, with no `.tmp` staging |
+| R10 | Resume double-writes | M8 | the last `seq` in the log is the single authority; a conflict between state and log stops with an error. **verified**: `StateConflict` has a test (`test_state_ahead_of_the_log_is_a_conflict`), and the fix is "state is only written, never read back to decide; every read-back follows the log replay" |
+| R11 | Planned analysis gets written up as measured | when writing the report | the SPEC section 5 banner + the 8.1b self-check table; "experiment shows" is banned in the report |
+| R12 | The rule set cannot detect the smells in the light-stratum corpus, so the debt metric is always 0 at stratum L | M7 measurement | measured L=0 / M=3 / H=8 (weighted); the gap is that the stratum-L smells are "floating-point money + module-level cache + a semantically duplicated tax derivation", which none of the six rule families covers. **Decision: the corpus is not changed** (the corpus is referenced byte for byte by M2 acceptance and by the 6 recordings, so changing it invalidates replay). Delivery claim: a debt reduction is claimed only at strata M/H, with hidden tests and line counts used for stratum L; this is written in `docs/rubric-mapping.md` §2f and section 6 |
 
-## 11. 需你确认的残留项（不阻塞开工）
+## 11. Open items for you to confirm (they do not block starting)
 
-1. **Git**：**已定（2026-11-14）**——系统安装被沙箱挡住，改用 MinGit 便携版（`_tools/git`，不入库）提供真实 commit；同时保留 `SHA256SUMS` 快照作为第二证据，README 里两种标识并列写明。
-2. **UI 形态**：默认本地网页（`http.server` + 原生 JS，改参考骨架）。若你更想要纯 CLI，M9 可省 1.5h，但 storyboard 出图会更难。
+1. **Git**: **settled (2026-11-14)** — the system install is blocked by the sandbox, so the portable MinGit (`_tools/git`, not committed) provides real commits; the `SHA256SUMS` snapshot is kept as second evidence, and the README states both identifiers side by side.
+2. **UI form**: a local web page by default (`http.server` + plain JS, editing the reference skeleton). If you would rather have a pure CLI, M9 saves 1.5h, but producing storyboard images gets harder.
 
-## 12. 批准后的第一步
+## 12. First step after approval
 
-1. 把本方案原样写入 `docs/PLAN.md`（含里程碑与验收命令）。
-2. 执行 **M0**：建目录、写 `config/config.json` 与 `AGENTS.md`、让 `--selftest` 与 `unittest discover` 两条命令先跑通。
-3. 之后按 M1→M11 顺序推进，每个里程碑结束时跑该行验收命令并把结果贴给你，**不一次做完再汇报**。
+1. Write this plan into `docs/PLAN.md` as it stands (with the milestones and the acceptance commands).
+2. Do **M0**: create the directories, write `config/config.json` and `AGENTS.md`, and get the `--selftest` and `unittest discover` commands passing first.
+3. Then proceed in the order M1→M11, run that row's acceptance command at the end of each milestone and paste the result to you, **without doing everything first and reporting only at the end**.

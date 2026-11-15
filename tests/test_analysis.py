@@ -248,9 +248,9 @@ class CanvasTests(unittest.TestCase):
 class WorkbookTests(unittest.TestCase):
     def test_round_trip_keeps_text_and_numbers(self):
         with scratch_dir("xlsx") as path:
-            book = xlsx.write(path / "t.xlsx", {"第一表": [["metric", "value"], ["debt", 1.25]]})
+            book = xlsx.write(path / "t.xlsx", {"sheet one": [["metric", "value"], ["debt", 1.25]]})
             back = xlsx.read_sheets(book)
-            self.assertEqual(back["第一表"], [["metric", "value"], ["debt", "1.25"]])
+            self.assertEqual(back["sheet one"], [["metric", "value"], ["debt", "1.25"]])
 
     def test_xml_special_characters_are_escaped(self):
         with scratch_dir("xlsx-escape") as path:

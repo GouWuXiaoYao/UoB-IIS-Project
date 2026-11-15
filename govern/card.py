@@ -70,7 +70,8 @@ def build(impact_set: impact.ImpactSet, task: tasks.Task, condition: str) -> Car
     """Build the card for one task under one condition.
 
     ``C1`` puts the whole impact set on the card and requires every item (SPEC
-    M2: "固定：影响集全量入卡"). ``C0`` is the no-governance baseline, so it
+    M2: "Fixed: the whole impact set goes on the card"). ``C0`` is the
+    no-governance baseline, so it
     carries no items and requires nothing — the suggestion is shown directly.
     Both conditions still produce a card object, so the logging layer sees the
     same shape for both groups (SPEC M6 acceptance 4).

@@ -42,7 +42,7 @@ python -m govern.log --selftest            # ok: 16 event types, seq from 1, ato
 python -m govern.score --selftest          # ok: 6 rules with positive and negative fixtures
 python -m govern.session --selftest        # ok: 10 participants, 6 slots each, deterministic
 python -m govern.web --selftest            # ok: 6 routes wired
-python -m govern.provenance --check        # ok: 31 rows, 11 modules covered
+python -m govern.provenance --check        # ok: 32 rows, 11 modules covered
 python -m unittest discover -s tests -q    # standard-library test runner
 ```
 

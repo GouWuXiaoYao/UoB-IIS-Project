@@ -1,7 +1,7 @@
 """Acceptance tests for the provenance ledger (SPEC M11 / PLAN milestone M10).
 
 The ledger exists to make "original / reused / assisted" checkable instead of
-rhetorical, so these tests are deliberately about the *规则* and not just about
+rhetorical, so these tests are deliberately about the *rules* and not just about
 the happy path: only-original ledgers, assisted rows with no evidence, reused
 rows pointing nowhere, and rows of the wrong shape all have to be caught.
 """

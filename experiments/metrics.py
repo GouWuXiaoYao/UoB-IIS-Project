@@ -1,7 +1,8 @@
 """Turn session logs into the numbers the study is about.
 
 Every figure here is recomputed from the JSONL on disk — `metrics.json` is a
-cache, never a source. That is SPEC 4.5's "日志是唯一数据源" taken literally: if
+cache, never a source. That is SPEC 4.5 taken literally — the log is the only
+data source: if
 a number cannot be rebuilt from `logs/`, it does not belong in the file.
 
 The two thresholds used below (`tau_review_ms`, `mech_dwell_ms`) come from
@@ -74,7 +75,7 @@ def _of(session: dict[str, Any], event_type: str) -> list[dict[str, Any]]:
 # per-session facts
 # ---------------------------------------------------------------------------
 def escapes(session: dict[str, Any]) -> bool:
-    """A task ended with a failing hidden suite — SPEC 5.2's "逃逸缺陷"."""
+    """A task ended with a failing hidden suite — the "escaped defect" of SPEC 5.2."""
     ends = _of(session, "task_end")
     return bool(ends) and ends[-1].get("tests_pass") is False
 
