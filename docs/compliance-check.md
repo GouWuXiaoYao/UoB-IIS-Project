@@ -5,23 +5,24 @@ This file maps the course marking instructions, item by item, to the evidence in
 - Subject: the working tree submitted as `HEAD` (148 tracked files before submission, 2 added by this check), Python 3.15.0 on this machine, pytest 9.2.0, 19 commits.
 - There are only three verdicts: **Satisfied** / **Partly satisfied** / **Not satisfied**. A "partly satisfied" always names the missing half; otherwise the verdict is useless.
 - Every conclusion comes with a reproducible command or a file location. Anything I could not verify is in §8, not mixed into a verdict.
+- Revision of 2026-11-24: the report was rebuilt around six numbered sections with Figures 1–4 inside the .docx (system diagram, three interaction frames). Counts are now abstract 219 / main report 1,080 / total 1,299, and the "diagram is a sibling file" gap recorded below is closed.
 
 ---
 
 ## 0. One-line conclusion
 
-**The engineering deliverables are complete, and the assessed report now exists. One placement gap remains: the system diagram is a separate deliverable and is not inside the report.**
+**The engineering deliverables are complete, and the assessed report now carries the architecture and interaction evidence inside it: Figure 1 is the system diagram and Figures 2–4 are interaction frames.**
 
-All four criteria now have substantive evidence — the design decisions, the interaction implementation and frames, the architecture and interfaces, and development provenance — and the report supplies the abstract, the ~1,000-word rationale, the four-column table, the references and the first-page word count. The diagram also exists, as `System diagram/system-diagram.png` with an evidence README, but the .docx contains no figure and never cites it. Therefore:
+All four criteria now have substantive evidence — the design decisions, the interaction implementation and frames, the architecture and interfaces, and development provenance — and the report supplies the abstract, the ~1,000-word rationale, the four-column table, the references and the first-page word count. The report is now six numbered sections: abstract (219 words), design rationale with Table 1 (1,080 words), the system and its two flows with Figure 1, three illustrated interactions in §4, scope, and repository evidence. Captions sit below each figure and, like the reference list, are excluded from the word count, as the instructions specify. Therefore:
 
 | Criterion | Points | Verdict | What was / is missing |
 |---|---|---|---|
-| Design reasoning and scope | /30 | **Satisfied** | Previously: no report chapter, no rationale table, no course concepts. Now: `docs/A2_Report_3138100.docx` §2 (main report 1096 words), Table 1 (7 data rows, four columns), six concept citations; `docs/course-concept-evidence.md` |
-| Developed interaction | /30 | **Satisfied** | Previously: no report interaction section and no reject path. Now: report §3 states the implemented/simulated/planned boundary; `storyboards/` has four frames, the fourth (`4-c1-reject.png` + `4-c1-reject.promises.txt`) evidencing refusal with a byte-identical working copy |
-| Architecture and technical reasoning | /20 | **Partly satisfied** | What now exists: `System diagram/system-diagram.png` (1300×960), `System diagram/README.md` with per-box and per-edge evidence tables, and `python tools/make_diagram.py --check` → `ok: 13 stages match the source`. What is still missing: the figure is not in `docs/A2_Report_3138100.docx` (no image part, no figure caption, no citation), and the report's §3 explains the status boundary rather than the components and flows |
+| Design reasoning and scope | /30 | **Satisfied** | Previously: no report chapter, no rationale table, no course concepts. Now: `docs/A2_Report_3138100.docx` §2 (main report 1,080 words), Table 1 (7 data rows, four columns), six concept citations; `docs/course-concept-evidence.md` |
+| Developed interaction | /30 | **Satisfied** | Previously: no report interaction section and no reject path. Now: report §4 shows three interactions as four frames (Figures 2–4), including the reject path with a byte-identical working copy; `storyboards/` holds the same four frames with their README |
+| Architecture and technical reasoning | /20 | **Satisfied** | Report §3 embeds `System diagram/system-diagram.png` as Figure 1 and explains the components, the control and evidence flows, and the `Client` boundary where the model sits; `System diagram/README.md` carries per-box and per-edge evidence tables; `python tools/make_diagram.py --check` → `ok: 13 stages match the source` |
 | Development evidence and authorship | /20 | **Satisfied** | None (see 2.4). |
 
-Deliverable checklist: storyboards and repository/README are satisfied; the report now exists with its abstract, rationale, four-column table, references and first-page word count; the system diagram exists as a separate file. All seven items are present; the only outstanding placement item is the diagram not being in the .docx (see §2.3).
+Deliverable checklist: storyboards, the system diagram and the repository/README are satisfied, and the report now contains the abstract, the rationale, the four-column table, Figures 1–4, the references and the first-page word count. All seven items are present inside the report itself; the placement gap that this file recorded for §2.3 is closed.
 
 ---
 
@@ -29,14 +30,14 @@ Deliverable checklist: storyboards and repository/README are satisfied; the repo
 
 | # | Requirement | Source | Verdict | Evidence |
 |---|---|---|---|---|
-| 1 | Abstract ≤ 300 words | Marking instructions | **Satisfied** | `docs/A2_Report_3138100.docx`: abstract 263 words; `python tools/word_count.py --docx=docs/A2_Report_3138100.docx --check` → `ok: the stated counts match the text and are within the limits` |
-| 2 | Design rationale ~1,000 words (limit 1,100) | Marking instructions | **Satisfied** | Report §2: main report 1096 words, under the 1,100 limit |
-| 3 | Four-column rationale table (Design choice / Why / Evidence / Status) | Marking instructions | **Satisfied** | Report Table 1: `Design choice` / `Why it suits the problem` / `Supporting evidence or reference` / `Status`, 7 data rows |
-| 4 | System diagram (boxes + arrows, marked implemented/simulated/planned) | Marking instructions | **Satisfied** | `System diagram/system-diagram.png` (1300×960) + `System diagram/README.md`; `python tools/make_diagram.py --check` → `ok: 13 stages match the source`. The figure is a sibling file, not embedded in the .docx (see §2.3) |
-| 5 | Storyboards, 2–3 use instances | Marking instructions | **Satisfied** | `storyboards/1-c1-gate-closed.png`, `2-c1-gate-open.png`, `3-c0-baseline.png`, `4-c1-reject.png` + `storyboards/README.md`; four frames for a 2–3 requirement |
+| 1 | Abstract ≤ 300 words | Marking instructions | **Satisfied** | `docs/A2_Report_3138100.docx`: abstract 219 words; `python tools/word_count.py --docx=docs/A2_Report_3138100.docx --check` → `ok: the stated counts match the text and are within the limits` |
+| 2 | Design rationale ~1,000 words (limit 1,100) | Marking instructions | **Satisfied** | Report §2: main report 1,080 words including Table 1's cells, under the 1,100 limit |
+| 3 | Four-column rationale table (Design choice / Why / Evidence / Status) | Marking instructions | **Satisfied** | Report Table 1: `Design choice` / `Why it fits` / `Evidence` / `Status`, 7 data rows |
+| 4 | System diagram (boxes + arrows, marked implemented/simulated/planned) | Marking instructions | **Satisfied** | Figure 1 in the report is `System diagram/system-diagram.png` (1300×960), whose legend marks implemented, simulated and planned; `System diagram/README.md`; `python tools/make_diagram.py --check` → `ok: 13 stages match the source` |
+| 5 | Storyboards, 2–3 use instances | Marking instructions | **Satisfied** | Report §4: three examples from `storyboards/1-c1-gate-closed.png`, `2-c1-gate-open.png` (one example, two frames), `3-c0-baseline.png` and `4-c1-reject.png`, each with caption and a stated action → response → feedback; `storyboards/README.md` |
 | 6 | Repository + README + submitted commit/release + development record | Marking instructions | **Satisfied** | 19 commits; `README.md:84` dual version marker; `README.md:109` development record |
 | 7 | References (including reused material) | Marking instructions | **Satisfied** | The report's `References` section has 6 entries; reused material is recorded in `docs/PROVENANCE.md` |
-| 8 | Total word count on the first page | Marking instructions | **Satisfied** | The report's first page says `Word count: 1359 total (abstract 263, main report 1096)` |
+| 8 | Total word count on the first page | Marking instructions | **Satisfied** | The report's first page says `Word count: 1299 total (abstract 219, main report 1080)` |
 | 9 | README explains AI use | Marking instructions | **Satisfied** | `README.md:128` |
 | 10 | Mark placeholders/unfinished work; never describe planned work as implemented | Marking-instruction red line | **Satisfied** | `docs/SPEC.md` §3.0 status table (MUST/SIM/PLAN/N/A); `README.md` Project status three-way split |
 
@@ -53,8 +54,8 @@ The marking instructions' Convincingly band asks for four things: ① connect th
 | ① Design ←→ problem | Present | `docs/SPEC.md` §1 (RQ/H1–Hn), §2 (C0/C1 conditions); the gap between blind trust and pre-emptive governance in the A1 literature is mapped directly onto C1's mandatory confirmation card; report §1–§2 |
 | ② Main choices evidenced | Present | `docs/rubric-mapping.md` maps each rubric item to requirement, evidence and test name; the report's Table 1 gives the choice, the reason, the source and the status for seven choices |
 | ③ Significant changes and scope compromises | Present, and **strong** | Eight decisions are recorded in `docs/SPEC.md` §6.0 (Q1–Q8); Q8's "prototype first" is an explicit scope compromise; `docs/rubric-mapping.md` §5 records each deviation from the plan with its reason (including `Check.detail`, `summarise(tolerance)`, `recordings/<slug>`). Report §2 and §3 carry the two scope compromises that matter: replay instead of live calls, and no human study this round |
-| ④ Developed/planned distinction | Present | `docs/SPEC.md` §3.0; `README.md` Project status; report §3 and Table 1's `Status` column |
-| **The artefact the marking instructions ask for** | **Present** | `docs/A2_Report_3138100.docx`: abstract 263, main report 1096, total 1359; the report's Table 1 has 7 data rows in four columns; 6 references; the total word count is on the first page |
+| ④ Developed/planned distinction | Present | `docs/SPEC.md` §3.0; `README.md` Project status; report §5 and Table 1's `Status` column |
+| **The artefact the marking instructions ask for** | **Present** | `docs/A2_Report_3138100.docx`: abstract 219, main report 1,080, total 1,299; Table 1 has 7 data rows in four columns; Figures 1–4 are image parts with captions; 6 references; the total word count is on the first page |
 | **Naming W1–4 concepts** | **Present** | `docs/course-concept-evidence.md` maps the design decisions to lecture slides with page numbers (`W4 L12 p.5`, `p.8`, `p.12`, `p.16`, `W2 L06 p.6`, `p.10`, `W3 L07 p.12`, `W2 L05 p.8`, `W1 L03 p.12`, `W2 examples p.19`, `W3 L09 p.9`); the report cites six of them |
 
 **This was the most expensive gap, and it is closed.** The marking instructions say "Name the concept or guideline and explain how it informed your decision rather than simply listing terms". The report now does that in §2 and Table 1 for six choices, and `docs/course-concept-evidence.md` is the page-level mapping behind them. The earlier statement that the repository had zero mentions of course concepts is no longer true. Nothing remains for this criterion: the prose, the table and the concept citations are all in the report.
@@ -79,26 +80,24 @@ The Convincingly band asks the submitted artefacts and storyboards to show **coh
 | Per-frame action / response / log sequence | **Present.** `storyboards/README.md` maps each frame to the log event numbers |
 | Implemented / simulated / unfinished distinction | **Present.** The page carries a permanent "Author self-test run (simulated)" banner; `README.md` and the SPEC status table use the same three-way split |
 | Red-line risk | **None.** No replay is described as a real model; no scripted operator is described as a participant |
-| **Gap 1** | **Closed.** The report's §3 "Scope, and the boundary between implemented and simulated" states the boundary; the frame-by-frame sequence is in `storyboards/README.md`, which is the storyboard deliverable. The report's abstract says "the three interface frames" — that is within the required 2–3 examples; the fourth frame is an additional control case |
+| **Gap 1** | **Closed.** Report §4 shows the three interactions the requirement asks for: gate closed → gate open (Figures 2a and 2b), the baseline without a card (Figure 3) and the rejection (Figure 4), each caption naming the developer's action, the system's response and the feedback or control state; `storyboards/README.md` carries the frame-by-frame record |
 | **Gap 2** | **Closed.** `storyboards/4-c1-reject.png` + `4-c1-reject.promises.txt` cover the refusal path: `suggestion_action(action=reject)`, with the working copy left byte-identical |
 
-**What was missing versus what now exists.** The report chapter now exists: §3 draws the implemented/simulated/planned boundary and the abstract states the scope. The rejection path now has a frame and a promise file. No further fix is needed for this criterion. The remaining risk is presentational only: a reader who opens only the .docx does not see the fourth frame, because the report still says "the three interface frames"; the four frames live in `storyboards/`. That is not a compliance gap (2–3 examples are required), but one sentence in the report would close the distance.
+**What was missing versus what now exists.** The report chapter now exists: §4 takes a reader through three interactions with four frames, and the first paragraph states in one sentence that the frames come from sessions the script drove and that no person was involved. The rejection path has a frame and a promise file. The remaining risk is presentational only: the narrow panes in the captures are empty because nothing has been generated yet, which the Example 1 paragraph explains.
 
-### 2.3 Architecture and technical reasoning (/20) — Partly satisfied
+### 2.3 Architecture and technical reasoning (/20) — Satisfied
 
 The Convincingly band asks the diagram and its explanation to show how **components, flows and dependencies** support the interaction (**including intelligent behaviour**), and to keep technical choices and boundaries consistent with the submission. The "Partly" descriptor is "lists components without explaining connections or role, or unexplained discrepancies".
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| Components and interfaces | Present | `docs/PLAN.md` §4 gives each module's signature; `govern/` has 11 modules with stated responsibilities |
+| Components and interfaces | Present | `docs/PLAN.md` §4 gives each module's signature; `govern/` has 15 modules with stated responsibilities |
 | Data flow | Present (text) | `docs/PLAN.md` §5: task → impact set → card → gate → suggestion → score → JSONL |
 | Dependencies and rationale | Present | Zero third-party runtime dependencies; `requirements-dev.txt` pins pytest only |
 | Where the intelligent behaviour is | Present | `govern/llm.py` dual mode (replay/live), recordings indexed by request sha, model consistency check |
-| **System diagram** | **Present as a separate deliverable** | `System diagram/system-diagram.png` (1300×960), `System diagram/README.md` with per-box and per-edge evidence tables; `python tools/make_diagram.py --check` → `ok: 13 stages match the source` |
+| **System diagram** | **Present inside the report** | Figure 1 of `docs/A2_Report_3138100.docx` (14.6 cm wide, `word/media/image1.png`, the same 1300×960 PNG), cited and explained by report §3; `System diagram/README.md` with per-box and per-edge evidence tables; `python tools/make_diagram.py --check` → `ok: 13 stages match the source` |
 
-**What now exists versus what is still missing.** The earlier gap — "no system diagram" — is closed: the figure exists, it has 13 stages, and the README ties each box and edge to the source. What is still missing is placement and explanation in the report: `docs/A2_Report_3138100.docx` contains no `word/media/` part and no `<w:drawing>`/`<w:blip>` element, no figure caption, and no mention of the diagram; its §3 explains the implemented/simulated/planned boundary but not the components and flows. A marker who opens only the .docx therefore does not see the architecture evidence. Until the figure is placed in the report and cited from §3, the criterion stays partly satisfied.
-
-**The remaining step**: place the figure in the report and cite it from §3 (or §2), so the diagram and the explanation sit next to the prose. The figure itself is done; the report is the only gap.
+**What now exists.** The earlier gap — "no system diagram", then "diagram not in the report" — is closed twice over: the figure exists with 13 stages, its README ties each box and edge to the source, and the .docx now contains it as Figure 1 with a caption and a paragraph that names the components, the control flow (task → analyser → card → gate → client), the evidence flow (every step → JSONL → runner → analysis) and the `Client` boundary that keeps the model behind one interface. The status legend on the figure itself separates implemented, simulated and planned, so a marker reading only the .docx sees the architecture and its boundary.
 
 ### 2.4 Development evidence and authorship (/20) — Satisfied
 
@@ -245,9 +244,9 @@ Measured on the clean tree exported by `git archive`: the success path prints `o
 
 | Priority | Item | Why | Acceptance |
 |---|---|---|---|
-| ~~P0~~ **Completed** | Write the report body: abstract (≤300 words), rationale (≈1,000 words, max 1,100), four-column table, references, first-page total word count | It was the **only direct score gap**; the material was ready, only assembly was missing | `docs/A2_Report_3138100.docx` exists; `python tools/word_count.py --docx=docs/A2_Report_3138100.docx --check` → `ok: the stated counts match the text and are within the limits`; total 1359 on the first page |
+| ~~P0~~ **Completed** | Write the report body: abstract (≤300 words), rationale (≈1,000 words, max 1,100), four-column table, references, first-page total word count | It was the **only direct score gap**; the material was ready, only assembly was missing | `docs/A2_Report_3138100.docx` exists; `python tools/word_count.py --docx=docs/A2_Report_3138100.docx --check` → `ok: the stated counts match the text and are within the limits`; total 1,299 on the first page |
 | ~~P0~~ **Completed** | Name **W1–4 course concepts** in the rationale, one sentence per decision ("concept → how it influenced the decision") | The marking instructions require it; the repository previously had zero mentions | `docs/course-concept-evidence.md`; the report cites six concepts with slide pages |
-| ~~P1~~ **Completed** | System diagram (one figure) | The marking instructions name it; Architecture needs it for Convincingly | `System diagram/system-diagram.png`, 1300×960; `System diagram/README.md` per-box and per-edge tables; `python tools/make_diagram.py --check` → `ok: 13 stages match the source`. One step remains: placing the figure in the .docx (§2.3) |
+| ~~P1~~ **Completed** | System diagram (one figure) | The marking instructions name it; Architecture needs it for Convincingly | `System diagram/system-diagram.png`, 1300×960; `System diagram/README.md` per-box and per-edge tables; `python tools/make_diagram.py --check` → `ok: 13 stages match the source`; now Figure 1 inside the report (§2.3) |
 | ~~P1~~ **Completed** | Add a fourth storyboard: rejecting a suggestion / abandoning mid-way | The marking instructions ask for "feedback **or control**"; the control surface had no frame | Done: `storyboards/4-c1-reject.png` + `4-c1-reject.promises.txt` (`suggestion_action(action=reject)`, working tree byte-identical) |
 | ~~P2~~ **Completed** | Make `device` an enum; state in the report that no pseudonym mapping is stored | The two hardening items in 4.3; required before any human study | Done: `config.device_kinds` + `log.validate()` rejects values outside the list; SPEC 4.6 states "no mapping between pseudonyms and real identities was ever created" |
 | ~~P2~~ **Completed** | `tools/reproduce.ps1`: combine the three commands from 5.1 and the four self-checks into one | "One command to reproduce" was three commands | Done: `powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1` → `ok: 6 of 6 steps passed`; stops at the failing step and prints its name and exit code; refuses an existing `-OutDir` and refuses to write into `runs/` or `analysis/` |
@@ -284,8 +283,27 @@ The table produced by the reproduction step (different from the repository's own
 | C0 | 6 | 1.00 | -3.67 | 0.00 | 0.00 |
 | C1 | 6 | 1.00 | -3.67 | 0.00 | 1.00 |
 
-The paired test for `Task time` gave `diff = -6.33`, `p = 0.036` this time, with `multiplicity: 1 tests, 1 survive Holm at alpha=0.05`; the repository's own run gave `p = 0.058` (0 survive). The four runs gave 0.058 / 0.036 / 0.036 / 0.035 — **same code, same configuration, only the wall-clock sample differs** — and Holm's verdict flips with it, so this measure is neither stable nor citable. The report's §4 has been rewritten to say so.
+The paired test for `Task time` gave `diff = -6.33`, `p = 0.036` this time, with `multiplicity: 1 tests, 1 survive Holm at alpha=0.05`; the repository's own run gave `p = 0.058` (0 survive). The four runs gave 0.058 / 0.036 / 0.036 / 0.035 — **same code, same configuration, only the wall-clock sample differs** — and Holm's verdict flips with it, so this measure is neither stable nor citable. The report's §5 has been rewritten to say so.
 
 Delivery snapshot: `python tools/make_release.py --build` → `dist/a2-1.0.0.zip` (161 entries, 696,791 bytes, `sha256:07651cd4ac339adc4a23104abb5541b5591dda4883bf7fffce2464989266b40c`, the tree of commit `d616cd9`), `--verify` passes, and two builds have the same hash. The text recording this hash is itself inside the archive, so rebuilding after this point necessarily gives a different hash — for a check, see the self-reference note in `docs/rubric-mapping.md` §2j.
 
 **Still unverified**: all five items in §8 still stand (clean machine, human use of the UI, a real `live` API call, concurrency pressure, band→score mapping); plus `pip install --require-hashes` cannot run on this machine (the substitute evidence is in §7's P3 row). **This section does not claim** that any human study or real model call has been completed.
+
+---
+
+## 10. Report rebuild (2026-11-24)
+
+The report was restructured around the six sections the marking instructions name, and the four figures were moved inside the .docx:
+
+| # | Check | Command | Result |
+|---|---|---|---|
+| 1 | Report rebuild | `C:\Python315\python.exe tools/make_report.py` | `abstract 219 words, main report 1080 words, total 1299 words` / `wrote docs/A2_Report_3138100.docx` (304,215 bytes, 5 media parts) |
+| 2 | Stated counts match the text | `python tools/word_count.py --docx=docs/A2_Report_3138100.docx --check` | `ok: the stated counts match the text and are within the limits` |
+| 3 | Report tests | `python -m unittest tests.test_report -q` | `Ran 11 tests ... OK` — including `test_the_shipped_report_matches_a_fresh_build` |
+| 4 | Figures reachable | render the .docx | 6 pages; Figure 1 (system diagram) on p.3, Figures 2a/2b on p.4, Figures 3 and 4 on p.5, section 5, section 6 and the complete reference list on p.6 |
+
+Open risk recorded honestly: the two figures that show the closed and open gate (2a/2b) have an empty diff pane, because nothing has been generated yet in that condition; Example 1's paragraph says so in one sentence rather than leaving the reader to guess.
+
+Scope boundary of this rebuild: `dist/a2-1.0.0.zip` is the release snapshot of an earlier tree and therefore carries the earlier report. Rebuilding it would change the digest quoted in README.md (§Version identification and its development record), `docs/rubric-mapping.md` §2j and `docs/PLAN.md`, so the archive is left as the record of that tree; the assessed report is `docs/A2_Report_3138100.docx` in the working tree.
+
+Environment note, because it will not reproduce elsewhere: on this machine `docs/` denies the `.venv` interpreter (`PermissionError: [Errno 13] Permission denied: '...docs\A2_Report_3138100.docx.part'`) while the system interpreter writes it, so the rebuild used `C:\Python315\python.exe` and the tests and checks ran under `.venv\Scripts\python.exe`. This does not affect a reader or a marker: the `.docx` ships in the repository, and `tests/test_report.py` rebuilds it in memory to prove the file matches its generator.
