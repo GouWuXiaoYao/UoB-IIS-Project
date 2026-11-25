@@ -9,23 +9,8 @@ given by [docs/PLAN.md](docs/PLAN.md). The grading evidence trail lives in
 the release snapshot; M12 added the `experiments/` harness; M13 added the `analysis/` layer.
 Milestone numbers in `PLAN.md` are not module numbers in `SPEC.md`; the mapping is in `PLAN.md` §1.
 
-What is **implemented**: the seed corpus, the AST impact analyser, the assessment card, the
-mandatory confirmation gate, the replay LLM client, the six-rule outcome scorer, the telemetry
-logger, the session orchestrator with deterministic assignment, the local web UI, the provenance
-checker, the `experiments/` harness and the `analysis/` layer (one workbook, four figures, paste-ready
-captions). What is **simulated**: model output, which is served from recordings whose `source` field
-says `sim` — no external API is called and no key is needed. What is **planned**: the human study
-(Q1/Q2 — designed, never run) and the inferential claims that would come with it. The `analysis/`
-code exists and runs, but `SPEC` M9 is still labelled `PLAN`: the pipeline is not shipped as the
-primary evidence, and every test it prints is a null result by construction.
+What is **implemented**: the seed corpus, the AST impact analyser, the assessment card, the mandatory confirmation gate, the replay LLM client, the six-rule outcome scorer, the telemetry logger, the session orchestrator with deterministic assignment, the local web UI, the provenance checker, the `experiments/` harness and the `analysis/` layer (one workbook, four figures, paste-ready captions). What is **simulated**: model output, which is served from recordings whose `source` field says `sim` — no external API is called and no key is needed. What is **planned**: the human study (Q1/Q2 — designed, never run) and the inferential claims that would come with it. The `analysis/` code exists and runs, but `SPEC` M9 is still labelled `PLAN`: the pipeline is not shipped as the primary evidence, and every test it prints is a null result by construction.
 **No human data has been collected.** Every session in this repository was run by the author.
-
-Prose word count of this README: **1257 words**, counted by `python tools/word_count.py` with this rule:
-blank lines, fenced code blocks, table rows and this paragraph are excluded, everything else counts
-(headings and list bullets included). An earlier version claimed 210 words from a hand count; the tool
-said 889 at that point and says 1257 now, so the earlier figure was wrong rather than counted
-differently. `python tools/word_count.py
---check` fails whenever the stated number and the text disagree, and the check is itself a test.
 
 ## How to run
 
@@ -64,8 +49,7 @@ python -m experiments.run --config conditions.yaml             # 12 sessions -> 
 python -m experiments.run --config conditions.yaml --resume    # only the cells that never ended
 ```
 
-`metrics.json` is recomputed from the JSONL logs, not accumulated in memory, so deleting it and
-re-running `--resume` reproduces the same numbers.
+`metrics.json` is recomputed from the JSONL logs, not accumulated in memory, so deleting it and re-running `--resume` reproduces the same numbers.
 
 The analysis layer turns those logs into a result table, four figures and paste-ready captions:
 
@@ -74,30 +58,19 @@ python -m analysis.run --runs runs --run-id E-SIM-01 --out analysis   # results.
 python -m analysis.run --selftest                                     # statistics checked against known answers
 ```
 
-`pytest` is a **test-time** dependency only (installed into `.venv/`, not committed), pinned with
-sha256 hashes in `requirements-dev.txt`: `pip install --require-hashes -r requirements-dev.txt`
-either installs exactly those nine artefacts or fails.
-If it is available: `python -m pytest -q`.
+`pytest` is a **test-time** dependency only (installed into `.venv/`, not committed), pinned with sha256 hashes in `requirements-dev.txt`: `pip install --require-hashes -r requirements-dev.txt` either installs exactly those nine artefacts or fails. If it is available: `python -m pytest -q`.
 
 ## One command, from a clean checkout
 
-`tools/reproduce.ps1` runs the four pre-submit self-checks and the two reproduction steps in order,
-and stops at the first non-zero exit:
+`tools/reproduce.ps1` runs the four pre-submit self-checks and the two reproduction steps in order, and stops at the first non-zero exit:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\reproduce.ps1
 ```
 
-The execution policy is bypassed because the script is not signed; this is the same reason a plain
-`& .\tools\reproduce.ps1` may be refused on a default Windows install.
+The execution policy is bypassed because the script is not signed; this is the same reason a plain `& .\tools\reproduce.ps1` may be refused on a default Windows install.
 
-It writes only under `_repro/<UTC timestamp>/`: `runs/` (twelve session logs), `analysis/`
-(`results.xlsx`, four figures, `captions.md`), one transcript per step in `logs/`, and
-`reproduce.json` (step name, command, exit code, seconds, transcript path). It never writes to the
-repository's own `runs/` or `analysis/`, never deletes anything, and **refuses an existing `-OutDir`**
-rather than overwriting it — there is no `-Force`. Pointing `-OutDir` inside `runs/` or `analysis/`
-is refused too. The experiment configuration is used exactly as committed: this script does not
-change the conditions, the task set or the number of repetitions.
+It writes only under `_repro/<UTC timestamp>/`: `runs/` (twelve session logs), `analysis/` (`results.xlsx`, four figures, `captions.md`), one transcript per step in `logs/`, and `reproduce.json` (step name, command, exit code, seconds, transcript path). It never writes to the repository's own `runs/` or `analysis/`, never deletes anything, and **refuses an existing `-OutDir`** rather than overwriting it — there is no `-Force`. Pointing `-OutDir` inside `runs/` or `analysis/` is refused too. The experiment configuration is used exactly as committed: this script does not change the conditions, the task set or the number of repetitions.
 
 Only a full run prints `ok: 6 of 6 steps passed`. A failure prints `FAILED at step N: <name>`, the
 exit code and the transcript path, then exits with that code.
@@ -106,42 +79,25 @@ exit code and the transcript path, then exits with that code.
 
 - Python 3.15.0, standard library only. No web framework, no ORM, no LLM SDK at runtime.
 - `http.server` + one HTML file for the UI; plain `unittest` for tests.
-- The LLM is behind `govern/llm.py` with two modes: `replay` (default; reads committed
-  recordings, no network, no key) and `live` (optional; reads `A2_API_KEY` from the environment).
-  Nothing in this repository has ever called a real model API.
-- Git for Windows could not be installed on this machine (`winget` returns `-1978335231`, the
-  installer places no files), so Git runs from MinGit 2.56.1 unpacked into untracked `_tools/git`.
+- The LLM is behind `govern/llm.py` with two modes: `replay` (default; reads committed recordings, no network, no key) and `live` (optional; reads `A2_API_KEY` from the environment). Nothing in this repository has ever called a real model API.
 
 ## Version identification
 
 Two identifiers, because neither alone is enough here:
 
 1. **Git history** — real commits; `git log --oneline`.
-2. **Checksum snapshot** — each release is also a ZIP with a `SHA256SUMS` manifest, so a reviewer
-   without Git can verify which bytes were assessed:
+2. **Checksum snapshot** — each release is also a ZIP with a `SHA256SUMS` manifest, so a reviewer without Git can verify which bytes were assessed:
 
    ```powershell
    python tools\make_release.py --build    # dist/a2-1.0.0.zip + dist/SHA256SUMS
    python tools\make_release.py --verify   # re-hash the archive and compare
    ```
 
-   The archive is reproducible: a second build of the same tree hashes identically, so the digest
-   identifies the work rather than the machine that packed it. `dist/` is not committed; rebuild it.
-   A digest therefore always belongs to a named commit, never to "the directory as it is now": the
-   line that records one is inside the tree it describes, so it goes stale as soon as it lands.
-   Quoted digests are historical: `2f2ea5d2…` is the 123-file tree frozen at M11, `b2fbc378…` the
-   131-file tree once `experiments/` was added, and `07651cd4…` the 161-entry tree at `d616cd9`.
-   The delivered tree, after the documentation was rewritten in English, is the 161-entry archive of
-   `228e92b` with `sha256:a7a399c0…` — again rebuilt from that commit, not copied from a console.
-   The report is **not** inside the archive: `tools/make_release.py` skips `.docx` on purpose, so
-   `docs/A2_Report_3138100.docx` travels as its own submitted file.
+   The archive is reproducible: a second build of the same tree hashes identically, so the digest identifies the work rather than the machine that packed it. `dist/` is not committed; rebuild it.
+   A digest therefore always belongs to a named commit, never to "the directory as it is now": the line that records one is inside the tree it describes, so it goes stale as soon as it lands.
+   Quoted digests are historical: `2f2ea5d2…` is the 123-file tree frozen at M11, `b2fbc378…` the 131-file tree once `experiments/` was added, and `07651cd4…` the 161-entry tree at `d616cd9`.
 
-   The archive is defined by an allowlist (`PAYLOAD_DIRS` and `PAYLOAD_FILES` in
-   `tools/make_release.py`), so a new top-level directory has to be added there to ship. That is
-   deliberate: walking the whole tree once pulled a stray temporary file into the archive, and an
-   unreadable one made the build fail outright. To check a quoted digest, export that commit and
-   build it: `git archive d616cd9` then `python tools/make_release.py --build` reproduces
-   `07651cd4…`, which is what the audit did rather than trusting the number.
+   The archive is defined by an allowlist (`PAYLOAD_DIRS` and `PAYLOAD_FILES` in `tools/make_release.py`), so a new top-level directory has to be added there to ship. That is deliberate: walking the whole tree once pulled a stray temporary file into the archive, and an unreadable one made the build fail outright. To check a quoted digest, export that commit and build it: `git archive d616cd9` then `python tools/make_release.py --build` reproduces `07651cd4…`, which is what the audit did rather than trusting the number.
 
 ## Development record
 
@@ -164,13 +120,9 @@ Three examples of reviewing and changing AI output, each caught by a test or by 
 
 ## AI assistance
 
-AI tools were used throughout. This assistant generated first drafts of the code, tests and
-documentation; the author set the scope (SPEC Q1–Q8), reviewed every draft, and changed what was
-wrong. Concretely, the author's interventions were: the eight scope rulings, the decision to keep
-`replay` as the only shipped mode, the "no pre-ticked boxes" rule, the removal of the pytest
-dependency, replacing item IDs with statements in the blocked message, and the fixes recorded in
-`docs/PROVENANCE.md` rows P-003, P-005, P-007, P-011, P-014, P-015 and P-017. Output was verified
-by running the commands above, not by inspection alone.
+AI assistant generated first drafts of the code and plan; the author set the scope (SPEC Q1–Q8), reviewed every draft, tested and changed what was wrong. Concretely, the author's interventions were: the eight scope rulings, the real test data and the decision to keep.
+
+`replay` as the only shipped mode, the "no pre-ticked boxes" rule, the removal of the pytest dependency, replacing item IDs with statements in the blocked message, and the fixes recorded in`docs/PROVENANCE.md` rows P-003, P-005, P-007, P-011, P-014, P-015 and P-017. Output was verified by running the commands above, not by inspection alone.
 
 ## Repository layout
 
